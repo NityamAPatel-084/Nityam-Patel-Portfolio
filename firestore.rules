@@ -1,0 +1,16 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rules for the portfolio database
+    match /portfolio_data/{document} {
+      // Allow public read access so anyone can view your portfolio
+      allow read: if true;
+      
+      // Allow write access so you can edit your portfolio from the Admin Dashboard
+      // Note: Since this setup uses a custom client-side password verification 
+      // rather than Firebase Authentication, writes are allowed without Firebase Auth.
+      allow write: if true;
+    }
+  }
+}

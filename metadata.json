@@ -1,0 +1,6 @@
+{
+  "name": "Nityam Patel Portfolio",
+  "description": "An immersive, glassmorphic cyberpunk portfolio featuring interactive particle simulations, cybernetic UI, and smooth animations, inspired by elite digital art studios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
