@@ -76,16 +76,16 @@ export default function AboutSection({ onResumeClick }: AboutSectionProps) {
           <div
             onMouseMove={isParallaxEnabled ? handleMouseMove : undefined}
             onMouseLeave={isParallaxEnabled ? handleMouseLeave : undefined}
-            className="w-full h-full bg-[#06070a] rounded-3xl flex items-center justify-center group overflow-hidden shadow-[0_0_40px_rgba(147,51,234,0.15)] hover:shadow-[0_0_55px_rgba(147,51,234,0.25)]"
+            className="w-full h-full bg-[#06070a] rounded-3xl flex items-center justify-center group overflow-hidden shadow-[0_0_40px_rgba(56,189,248,0.1)] hover:shadow-[0_0_55px_rgba(56,189,248,0.2)]"
             style={{
               transform: `rotateX(${cardRotateX}deg) rotateY(${cardRotateY}deg) scale(${isParallaxEnabled && coords.active ? 1.02 : 1})`,
               transformStyle: 'preserve-3d',
               transition: transitionStyle,
             }}
           >
-            {/* Layer 1: Dynamic pulsing backlight violet halo backdrop (moves in reverse) */}
+            {/* Layer 1: Dynamic pulsing backlight neutral cyber glow backdrop (moves in reverse) */}
             <div 
-              className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#7c3aed_0%,_#3b0764_35%,_#090514_70%,_#030712_100%)] pointer-events-none z-0 scale-125" 
+              className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(14,165,233,0.15)_0%,_rgba(15,23,42,0.4)_45%,_#090514_80%,_#030712_100%)] pointer-events-none z-0 scale-125" 
               style={{
                 transform: `translate3d(${bgTranslateX}px, ${bgTranslateY}px, -20px)`,
                 transition: transitionStyle,
@@ -105,7 +105,7 @@ export default function AboutSection({ onResumeClick }: AboutSectionProps) {
                 <img 
                   src={profile.avatarUrl} 
                   alt={profile.name} 
-                  className="w-full h-full object-cover rounded-3xl relative z-10 mix-blend-multiply"
+                  className="w-full h-full object-cover rounded-3xl relative z-10"
                   referrerPolicy="no-referrer"
                 />
                 
@@ -113,9 +113,9 @@ export default function AboutSection({ onResumeClick }: AboutSectionProps) {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_60%,_rgba(3,7,18,0.6)_100%)] pointer-events-none z-20 rounded-3xl" />
               </div>
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 to-indigo-500/15 flex flex-col items-center justify-center p-3 text-center space-y-1.5 z-10">
-                <Cpu size={32} className="text-purple-400 group-hover:rotate-45 transition-transform duration-500" />
-                <span className="font-sans text-[10px] tracking-wider text-purple-400 font-semibold font-mono uppercase">COGNITIVE_NODE</span>
+              <div className="absolute inset-0 bg-gradient-to-tr from-neutral-800/10 to-neutral-900/15 flex flex-col items-center justify-center p-3 text-center space-y-1.5 z-10">
+                <Cpu size={32} className="text-sky-400 group-hover:rotate-45 transition-transform duration-500" />
+                <span className="font-sans text-[10px] tracking-wider text-sky-400 font-semibold font-mono uppercase">COGNITIVE_NODE</span>
                 <span className="font-sans text-[8px] text-neutral-500 font-mono">STATUS: ONLINE</span>
               </div>
             )}

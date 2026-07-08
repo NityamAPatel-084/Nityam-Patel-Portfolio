@@ -88,8 +88,8 @@ const DEFAULT_SECTIONS: Sections = {
   connect: 'Connect'
 };
 
-const DEFAULT_PASSWORD = 'Admin@84Login';
-const DEFAULT_CODEWORD = '/admin84login';
+const DEFAULT_PASSWORD = 'al';
+const DEFAULT_CODEWORD = '/al';
 
 const DEFAULT_SOCIALS: SocialAccount[] = [
   { id: '1', platform: 'GitHub', url: 'https://github.com' },
@@ -176,87 +176,54 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         if (data) {
           setProfileState(data as Profile);
           localStorage.setItem('port_profile', JSON.stringify(data));
-        } else {
-          // If Firestore is empty, seed it with the current profile
-          setProfile(profile);
         }
       }, handleSyncError),
       subscribeToFirestore('sections', (data) => {
         if (data) {
           setSectionsState(data as Sections);
           localStorage.setItem('port_sections', JSON.stringify(data));
-        } else {
-          setSections(sections);
         }
       }, handleSyncError),
       subscribeToFirestore('projects', (data) => {
         if (data && data.list) {
           setProjectsState(data.list as Project[]);
           localStorage.setItem('port_projects', JSON.stringify(data.list));
-        } else {
-          setProjects(projects);
         }
       }, handleSyncError),
       subscribeToFirestore('technologies', (data) => {
         if (data && data.list) {
           setTechnologiesState(data.list as Technology[]);
           localStorage.setItem('port_techs', JSON.stringify(data.list));
-        } else {
-          setTechnologies(technologies);
         }
       }, handleSyncError),
       subscribeToFirestore('certificates', (data) => {
         if (data && data.list) {
           setCertificatesState(data.list as Certificate[]);
           localStorage.setItem('port_certs', JSON.stringify(data.list));
-        } else {
-          setCertificates(certificates);
         }
       }, handleSyncError),
       subscribeToFirestore('hackathons', (data) => {
         if (data && data.list) {
           setHackathonsState(data.list as Hackathon[]);
           localStorage.setItem('port_hacks', JSON.stringify(data.list));
-        } else {
-          setHackathons(hackathons);
         }
       }, handleSyncError),
       subscribeToFirestore('experiences', (data) => {
         if (data && data.list) {
           setExperiencesState(data.list as Experience[]);
           localStorage.setItem('port_exps', JSON.stringify(data.list));
-        } else {
-          setExperiences(experiences);
         }
       }, handleSyncError),
       subscribeToFirestore('educations', (data) => {
         if (data && data.list) {
           setEducationsState(data.list as Education[]);
           localStorage.setItem('port_edus', JSON.stringify(data.list));
-        } else {
-          setEducations(educations);
         }
       }, handleSyncError),
       subscribeToFirestore('socials', (data) => {
         if (data && data.list) {
           setSocialsState(data.list as SocialAccount[]);
           localStorage.setItem('port_socials', JSON.stringify(data.list));
-        } else {
-          setSocials(socials);
-        }
-      }, handleSyncError),
-      subscribeToFirestore('settings', (data) => {
-        if (data) {
-          if (data.adminPassword) {
-            setAdminPasswordState(data.adminPassword);
-            localStorage.setItem('port_pass', data.adminPassword);
-          }
-          if (data.adminCodeword) {
-            setAdminCodewordState(data.adminCodeword);
-            localStorage.setItem('port_codeword', data.adminCodeword);
-          }
-        } else {
-          saveToFirestore('settings', { adminPassword, adminCodeword });
         }
       }, handleSyncError),
     ];

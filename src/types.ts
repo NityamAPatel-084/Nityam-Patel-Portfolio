@@ -40,6 +40,8 @@ export interface Hackathon {
   description: string;
   tags: string[];
   location: string;
+  participationCertUrl?: string;
+  winningCertUrl?: string;
 }
 
 export interface Experience {

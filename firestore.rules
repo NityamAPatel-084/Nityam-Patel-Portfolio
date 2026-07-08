@@ -2,15 +2,31 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Rules for the portfolio database
+    
+    // Default-deny safety net: deny read and write to all unspecified collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Core portfolio data collection
     match /portfolio_data/{document} {
-      // Allow public read access so anyone can view your portfolio
+      // General public reads allowed for all portfolio data EXCEPT the credentials settings
+      allow read: if document != 'settings';
+      
+      // Dynamic signature verification gate for all writes
+      allow write: if (document == 'settings' && !exists(/databases/$(database)/documents/portfolio_data/settings)) ||
+                   (request.resource.data.adminSignature != null && 
+                    request.resource.data.adminSignature == hashing.sha256((get(/databases/$(database)/documents/portfolio_data/settings).data.adminPassword + '_' + document).toUtf8()).toHexString());
+    }
+    
+    // Resume document and PDF chunks
+    match /resume_chunks/{document} {
+      // Public reads allowed to retrieve Nityam's physical resume
       allow read: if true;
       
-      // Allow write access so you can edit your portfolio from the Admin Dashboard
-      // Note: Since this setup uses a custom client-side password verification 
-      // rather than Firebase Authentication, writes are allowed without Firebase Auth.
-      allow write: if true;
+      // Protected chunk writes verified by the same cryptographic signature gate
+      allow write: if request.resource.data.adminSignature != null && 
+                    request.resource.data.adminSignature == hashing.sha256((get(/databases/$(database)/documents/portfolio_data/settings).data.adminPassword + '_' + document).toUtf8()).toHexString();
     }
   }
 }

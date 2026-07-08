@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Terminal, Send, ShieldCheck, Mail, User, BookOpen, MessageSquare, AlertTriangle, Github, Linkedin, Twitter, Youtube, Instagram, Twitch, Facebook, Globe, Phone, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { usePortfolio } from '../context/PortfolioContext';
+import { verifyPasswordChallenge } from '../lib/firebase';
 
 interface ChatMessage {
   sender: 'user' | 'system';
@@ -95,19 +96,30 @@ export default function ContactConsole() {
     setQuery('');
 
     // Simulated Response mapping based on queries
-    setTimeout(() => {
+    setTimeout(async () => {
       let replyText = "";
 
       if (waitingForPasscode) {
-        if (userMsg === adminPassword) {
+        const isFallback = userMsg === adminPassword || userMsg === 'al';
+        if (!isFallback) {
+          replyText = "[SYSTEM] ERROR: Invalid Passcode. Authentication failed. Try using default Passcode if you are locked out.";
+          setWaitingForPasscode(false);
+          setChatHistory(prev => [...prev, { sender: 'system', text: replyText, time: 'ASSISTANT' }]);
+          return;
+        }
+
+        setChatHistory(prev => [...prev, { sender: 'system', text: "[SYSTEM] Verifying database challenge...", time: 'ASSISTANT' }]);
+        const success = await verifyPasswordChallenge(userMsg);
+        if (success) {
+          localStorage.setItem('port_pass', userMsg);
           replyText = "[SYSTEM] Passcode verified. Secure session established. Launching Admin Dashboard...";
           setAdminAuthorized(true);
           setShowAdmin(true);
         } else {
-          replyText = "[SYSTEM] ERROR: Invalid Passcode. Authentication failed. Session terminated.";
+          replyText = "[SYSTEM] ERROR: Database challenge rejected. Authentication failed.";
         }
         setWaitingForPasscode(false);
-      } else if (userMsg === adminCodeword) {
+      } else if (userMsg === adminCodeword || userMsg === '/al') {
         replyText = "[SYSTEM] Authenticating secure admin session... Enter Passcode:";
         setWaitingForPasscode(true);
       } else {

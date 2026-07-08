@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Project } from '../types';
 import { usePortfolio } from '../context/PortfolioContext';
 import { ArrowRight, Cpu, Network, Shield, Waves, HelpCircle, ArrowUpRight } from 'lucide-react';
+import { useResolvedUrl } from '../hooks/useResolvedUrl';
 
 interface ProjectSliderProps {
   onProjectClick: (project: Project) => void;
 }
 
-function ProjectThumbnail({ projectId }: { projectId: string }) {
+export function ProjectThumbnail({ projectId }: { projectId: string }) {
   switch (projectId) {
     case 'neural-synapse-core':
       return (
@@ -141,6 +142,50 @@ function ProjectThumbnail({ projectId }: { projectId: string }) {
   }
 }
 
+function ProjectMediaThumbnail({ project }: { project: any }) {
+  const imageUrl = project.imageUrl;
+  const resolvedUrl = useResolvedUrl(imageUrl);
+
+  if (resolvedUrl) {
+    const isPdf = imageUrl.startsWith('data:application/pdf') || 
+                  imageUrl.endsWith('.pdf') || 
+                  (resolvedUrl.startsWith('blob:') && imageUrl.includes('application/pdf'));
+
+    if (isPdf) {
+      return (
+        <div className="absolute inset-0 bg-neutral-950 flex items-center justify-center overflow-hidden h-full w-full">
+          <iframe 
+            src={`${resolvedUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+            className="w-full h-full border-none pointer-events-none bg-white scale-[1.02]"
+            style={{ backgroundColor: '#ffffff' }}
+            title={project.title}
+          />
+          <div className="absolute inset-0 bg-transparent z-10" />
+          <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded z-20">
+            PROJECT // MOUNTED // PDF
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="absolute inset-0 bg-neutral-950 flex items-center justify-center overflow-hidden h-full w-full">
+          <img 
+            src={resolvedUrl} 
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+            referrerPolicy="no-referrer" 
+            alt={project.title} 
+          />
+          <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">
+            PROJECT // IMAGE // MOUNTED
+          </div>
+        </div>
+      );
+    }
+  }
+
+  return <ProjectThumbnail projectId={project.id} />;
+}
+
 export default function ProjectSlider({ onProjectClick }: ProjectSliderProps) {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const { projects } = usePortfolio();
@@ -219,18 +264,7 @@ export default function ProjectSlider({ onProjectClick }: ProjectSliderProps) {
             >
               {/* Left Side: Thumbnail gets 58% width area, providing an immersive preview */}
               <div className="relative w-full md:w-[58%] h-56 md:h-full overflow-hidden shrink-0 border-r-0 md:border-r border-b md:border-b-0 border-neutral-800/60 bg-[#090b11]">
-                {project.imageUrl ? (
-                  <div className="absolute inset-0 flex items-center justify-center p-2">
-                    <img 
-                      src={project.imageUrl} 
-                      alt={project.title} 
-                      className="w-full h-full object-cover rounded-lg" 
-                      referrerPolicy="no-referrer" 
-                    />
-                  </div>
-                ) : (
-                  <ProjectThumbnail projectId={project.id} />
-                )}
+                <ProjectMediaThumbnail project={project} />
                 
                 {/* Category Floater Badge */}
                 <div className="absolute top-3.5 left-3.5 flex items-center gap-1.5 px-2.5 py-1 bg-neutral-950/80 backdrop-blur border border-neutral-800 rounded-full font-mono text-[9px] text-neutral-400 uppercase tracking-wider">

@@ -2,11 +2,21 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   X, Save, Trash2, Plus, RefreshCw, Lock, 
-  User, Cpu, Code, Award, Database, ShieldAlert, GraduationCap, FileText, Settings, Upload, Share2, Sparkles 
+  User, Cpu, Code, Award, Database, ShieldAlert, GraduationCap, FileText, Settings, Upload, Share2, Sparkles,
+  Download
 } from 'lucide-react';
 import { usePortfolio, Profile, Sections } from '../context/PortfolioContext';
 import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount } from '../types';
-import { isFirebaseConfigured } from '../lib/firebase';
+import { isFirebaseConfigured, saveResumeToFirestore } from '../lib/firebase';
+import { sanitizePlainString, sanitizeHtmlContent } from '../lib/sanitize';
+import { 
+  downloadProjectsTemplate, parseProjectsExcel,
+  downloadCertsTemplate, parseCertsExcel,
+  downloadHacksTemplate, parseHacksExcel,
+  downloadSkillsTemplate, parseSkillsExcel,
+  downloadExperienceTemplate, parseExperienceExcel,
+  downloadEducationTemplate, parseEducationExcel
+} from '../lib/excelUtils';
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -64,7 +74,8 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   });
 
   const [hackForm, setHackForm] = useState<Partial<Hackathon>>({
-    title: '', position: '', year: '', description: '', tags: [], location: ''
+    title: '', position: '', year: '', description: '', tags: [], location: '',
+    participationCertUrl: '', winningCertUrl: ''
   });
 
   const [expForm, setExpForm] = useState<Partial<Experience>>({
@@ -87,14 +98,121 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     setTimeout(() => setFeedback(null), 3000);
   };
 
-  // Base64 file converter helper
+  // Base64 file converter helper with built-in auto-compression and resizing for images
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fieldSetter: (base64: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check size first for non-image files
+    if (!file.type.startsWith('image/')) {
+      // Allow up to 12 MB for resumes and general documents
+      const MAX_DOC_SIZE = 12 * 1024 * 1024;
+      if (file.size > MAX_DOC_SIZE) {
+        triggerFeedback('Document size is too large. Resumes must be less than 12 MB.', 'error');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        fieldSetter(reader.result as string);
+        triggerFeedback(`Uploaded document ready: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+      };
+      reader.onerror = () => {
+        triggerFeedback('Failed to read document file.', 'error');
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // It's an image. Let's see if the file is already under 600 KB.
+    // If it is already under 600 KB, we do NOT downscale or compress it.
+    // We can just load it directly to maintain 100% of the original quality!
+    if (file.size <= 600 * 1024) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        fieldSetter(event.target?.result as string);
+        triggerFeedback(`Image uploaded at original high resolution: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+      };
+      reader.onerror = () => {
+        triggerFeedback('Failed to read image file.', 'error');
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // If the image is over 600 KB, let's downscale and compress it intelligently so that it is "just under 1 MB".
+    // 1 MB of binary is ~1,048,576 bytes. Encoded in Base64, that is ~1,398,101 characters.
+    // Let's target a safe base64 string length of 850,000 characters (~630 KB binary) so it's "just under 1 MB" and doesn't trigger document write errors in Firebase.
     const reader = new FileReader();
-    reader.onloadend = () => {
-      fieldSetter(reader.result as string);
-      triggerFeedback(`Uploaded document ready: ${file.name}`);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let currentQuality = 0.95;
+        let currentMaxDim = 2048;
+        let resultBase64 = '';
+
+        // Iteratively find the sweet spot: maximum dimension and quality to keep the file "just less than 1 MB"
+        while (currentMaxDim >= 512) {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > currentMaxDim || height > currentMaxDim) {
+            if (width > height) {
+              height = Math.round((height * currentMaxDim) / width);
+              width = currentMaxDim;
+            } else {
+              width = Math.round((width * currentMaxDim) / height);
+              height = currentMaxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // Fill background white for jpeg export to avoid transparency/alpha issues
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            resultBase64 = canvas.toDataURL('image/jpeg', currentQuality);
+          } else {
+            break;
+          }
+
+          // If the output base64 string is under 850,000 characters (approx. 630 KB), we stop optimizing
+          if (resultBase64.length < 850000) {
+            break;
+          }
+
+          // If it is still too big, gradually reduce quality, then try smaller dimension
+          if (currentQuality > 0.7) {
+            currentQuality -= 0.05;
+          } else {
+            currentMaxDim -= 256;
+            currentQuality = 0.92; // reset quality for smaller dimension
+          }
+        }
+
+        if (resultBase64) {
+          fieldSetter(resultBase64);
+          triggerFeedback(`Image intelligently optimized: ${Math.round(resultBase64.length * 3 / 4 / 1024)} KB (under 1 MB limit)`);
+        } else {
+          // Fallback to original
+          fieldSetter(event.target?.result as string);
+          triggerFeedback(`Uploaded image: ${file.name}`);
+        }
+      };
+      img.onerror = () => {
+        fieldSetter(event.target?.result as string);
+        triggerFeedback(`Uploaded image: ${file.name}`);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      triggerFeedback('Failed to read image file.', 'error');
     };
     reader.readAsDataURL(file);
   };
@@ -126,28 +244,40 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   // Save General settings (Profile & Sections)
-  const saveGeneralSettings = () => {
+  const saveGeneralSettings = async () => {
+    let finalResumeUrl = profResume;
+    if (profResume && profResume.startsWith('data:') && profResume.length > 900000) {
+      triggerFeedback('Large resume detected. Uplinking chunked resume payload...', 'success');
+      const ok = await saveResumeToFirestore(profResume);
+      if (ok) {
+        finalResumeUrl = 'db_chunked:resume_data_payload';
+      } else {
+        triggerFeedback('Failed to upload chunked resume payload.', 'error');
+        return;
+      }
+    }
+
     const updatedProfile: Profile = {
       ...portfolio.profile,
-      name: profName,
-      designation: profDesig,
-      aboutMeText: profAbout,
-      resumeUrl: profResume,
+      name: sanitizePlainString(profName),
+      designation: sanitizePlainString(profDesig),
+      aboutMeText: sanitizeHtmlContent(profAbout),
+      resumeUrl: finalResumeUrl,
       avatarUrl: profAvatar,
-      location: profLocation,
-      email: profEmail,
-      phone: profPhone,
+      location: sanitizePlainString(profLocation),
+      email: sanitizePlainString(profEmail),
+      phone: sanitizePlainString(profPhone),
       parallaxEnabled: profParallax
     };
     const updatedSections: Sections = {
-      home: secHome,
-      technologies: secTech,
-      projects: secProj,
-      experience: secExp,
-      hackathons: secHack,
-      certifications: secCert,
-      education: secEdu,
-      connect: secConn
+      home: sanitizePlainString(secHome),
+      technologies: sanitizePlainString(secTech),
+      projects: sanitizePlainString(secProj),
+      experience: sanitizePlainString(secExp),
+      hackathons: sanitizePlainString(secHack),
+      certifications: sanitizePlainString(secCert),
+      education: sanitizePlainString(secEdu),
+      connect: sanitizePlainString(secConn)
     };
 
     portfolio.setProfile(updatedProfile);
@@ -213,11 +343,28 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Title and Summary description are required.', 'error');
       return;
     }
+    
+    const sanitizedForm: Project = {
+      id: projectForm.id || 'proj-' + Date.now(),
+      title: sanitizePlainString(projectForm.title || ''),
+      description: sanitizePlainString(projectForm.description || ''),
+      tags: (projectForm.tags || []).map(t => sanitizePlainString(t)),
+      year: sanitizePlainString(projectForm.year || ''),
+      status: projectForm.status || 'ACTIVE_STATE',
+      category: projectForm.category || 'websites',
+      serial: sanitizePlainString(projectForm.serial || ''),
+      client: sanitizePlainString(projectForm.client || ''),
+      link: sanitizePlainString(projectForm.link || ''),
+      imageUrl: projectForm.imageUrl || '',
+      videoUrl: sanitizePlainString(projectForm.videoUrl || ''),
+      details: sanitizeHtmlContent(projectForm.details || '')
+    };
+
     let updated: Project[];
     if (editingId === 'new') {
-      updated = [...portfolio.projects, projectForm as Project];
+      updated = [...portfolio.projects, sanitizedForm];
     } else {
-      updated = portfolio.projects.map(p => p.id === editingId ? { ...p, ...projectForm } as Project : p);
+      updated = portfolio.projects.map(p => p.id === editingId ? { ...p, ...sanitizedForm } as Project : p);
     }
     portfolio.setProjects(updated);
     setEditingId(null);
@@ -249,15 +396,22 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Technology name is required.', 'error');
       return;
     }
+    const sanitizedForm: Technology = {
+      name: sanitizePlainString(techForm.name || ''),
+      category: techForm.category || 'Languages',
+      proficiency: Number(techForm.proficiency) || 90,
+      status: techForm.status || 'MASTERED',
+      metric: sanitizePlainString(techForm.metric || '')
+    };
     let updated: Technology[];
     if (editingId === 'new_skill') {
-      if (portfolio.technologies.some(t => t.name === techForm.name)) {
+      if (portfolio.technologies.some(t => t.name === sanitizedForm.name)) {
         triggerFeedback('A skill with this name already exists.', 'error');
         return;
       }
-      updated = [...portfolio.technologies, techForm as Technology];
+      updated = [...portfolio.technologies, sanitizedForm];
     } else {
-      updated = portfolio.technologies.map(t => t.name === editingId ? { ...t, ...techForm } as Technology : t);
+      updated = portfolio.technologies.map(t => t.name === editingId ? sanitizedForm : t);
     }
     portfolio.setTechnologies(updated);
     setEditingId(null);
@@ -291,11 +445,20 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Title and issuer fields are required.', 'error');
       return;
     }
+    const sanitizedForm: Certificate = {
+      id: certForm.id || 'cert-' + Date.now(),
+      title: sanitizePlainString(certForm.title || ''),
+      issuer: sanitizePlainString(certForm.issuer || ''),
+      date: sanitizePlainString(certForm.date || ''),
+      credentialId: sanitizePlainString(certForm.credentialId || ''),
+      credentialUrl: sanitizePlainString(certForm.credentialUrl || ''),
+      status: certForm.status || 'VERIFIED'
+    };
     let updated: Certificate[];
     if (editingId === 'new_cert') {
-      updated = [...portfolio.certificates, certForm as Certificate];
+      updated = [...portfolio.certificates, sanitizedForm];
     } else {
-      updated = portfolio.certificates.map(c => c.id === editingId ? { ...c, ...certForm } as Certificate : c);
+      updated = portfolio.certificates.map(c => c.id === editingId ? sanitizedForm : c);
     }
     portfolio.setCertificates(updated);
     setEditingId(null);
@@ -329,11 +492,22 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Title and placement result are required.', 'error');
       return;
     }
+    const sanitizedForm: Hackathon = {
+      id: hackForm.id || 'hack-' + Date.now(),
+      title: sanitizePlainString(hackForm.title || ''),
+      position: sanitizePlainString(hackForm.position || ''),
+      year: sanitizePlainString(hackForm.year || ''),
+      description: sanitizePlainString(hackForm.description || ''),
+      tags: (hackForm.tags || []).map(t => sanitizePlainString(t)),
+      location: sanitizePlainString(hackForm.location || ''),
+      participationCertUrl: hackForm.participationCertUrl || '',
+      winningCertUrl: hackForm.winningCertUrl || ''
+    };
     let updated: Hackathon[];
     if (editingId === 'new_hack') {
-      updated = [...portfolio.hackathons, hackForm as Hackathon];
+      updated = [...portfolio.hackathons, sanitizedForm];
     } else {
-      updated = portfolio.hackathons.map(h => h.id === editingId ? { ...h, ...hackForm } as Hackathon : h);
+      updated = portfolio.hackathons.map(h => h.id === editingId ? sanitizedForm : h);
     }
     portfolio.setHackathons(updated);
     setEditingId(null);
@@ -367,11 +541,20 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Role title and company are required.', 'error');
       return;
     }
+    const sanitizedForm: Experience = {
+      id: expForm.id || 'exp-' + Date.now(),
+      role: sanitizePlainString(expForm.role || ''),
+      company: sanitizePlainString(expForm.company || ''),
+      period: sanitizePlainString(expForm.period || ''),
+      description: sanitizePlainString(expForm.description || ''),
+      bullets: (expForm.bullets || []).map(b => sanitizePlainString(b)),
+      status: expForm.status || 'ACTIVE_UPLINK'
+    };
     let updated: Experience[];
     if (editingId === 'new_exp') {
-      updated = [...portfolio.experiences, expForm as Experience];
+      updated = [...portfolio.experiences, sanitizedForm];
     } else {
-      updated = portfolio.experiences.map(e => e.id === editingId ? { ...e, ...expForm } as Experience : e);
+      updated = portfolio.experiences.map(e => e.id === editingId ? sanitizedForm : e);
     }
     portfolio.setExperiences(updated);
     setEditingId(null);
@@ -404,11 +587,19 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Degree level and institution are required.', 'error');
       return;
     }
+    const sanitizedForm: Education = {
+      id: eduForm.id || 'edu-' + Date.now(),
+      degree: sanitizePlainString(eduForm.degree || ''),
+      institution: sanitizePlainString(eduForm.institution || ''),
+      period: sanitizePlainString(eduForm.period || ''),
+      grade: sanitizePlainString(eduForm.grade || ''),
+      details: sanitizePlainString(eduForm.details || '')
+    };
     let updated: Education[];
     if (editingId === 'new_edu') {
-      updated = [...portfolio.educations, eduForm as Education];
+      updated = [...portfolio.educations, sanitizedForm];
     } else {
-      updated = portfolio.educations.map(e => e.id === editingId ? { ...e, ...eduForm } as Education : e);
+      updated = portfolio.educations.map(e => e.id === editingId ? sanitizedForm : e);
     }
     portfolio.setEducations(updated);
     setEditingId(null);
@@ -438,11 +629,13 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       triggerFeedback('Platform name and URL link are required.', 'error');
       return;
     }
+    const platform = sanitizePlainString(socialForm.platform);
+    const url = sanitizePlainString(socialForm.url);
     let updated: SocialAccount[];
     if (editingId === 'new_social') {
-      updated = [...portfolio.socials, { id: 'soc-' + Date.now(), platform: socialForm.platform, url: socialForm.url }];
+      updated = [...portfolio.socials, { id: 'soc-' + Date.now(), platform, url }];
     } else {
-      updated = portfolio.socials.map(s => s.id === editingId ? { ...s, platform: socialForm.platform, url: socialForm.url } : s);
+      updated = portfolio.socials.map(s => s.id === editingId ? { ...s, platform, url } : s);
     }
     portfolio.setSocials(updated);
     setEditingId(null);
@@ -682,7 +875,7 @@ service cloud.firestore {
                     <div className="space-y-1.5">
                       <label className="text-[10px] text-neutral-500 font-semibold tracking-wider uppercase flex items-center gap-1">
                         <Upload size={10} />
-                        Upload Avatar Image (Base64)
+                        Upload Avatar Image (Auto-optimized)
                       </label>
                       <input 
                         type="file" 
@@ -691,6 +884,17 @@ service cloud.firestore {
                         className="w-full bg-[#111827]/40 border border-neutral-800 text-[10px] focus:outline-none p-2 rounded-lg text-neutral-400 file:bg-neutral-800 file:border-0 file:text-[10px] file:text-white file:px-2.5 file:py-1 file:mr-2 file:rounded file:cursor-pointer"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-neutral-500 font-semibold tracking-wider uppercase">Avatar Image URL (or auto-optimized base64 data)</label>
+                    <input 
+                      type="text" 
+                      value={profAvatar} 
+                      onChange={(e) => setProfAvatar(e.target.value)}
+                      className="w-full bg-neutral-950/60 border border-neutral-800 focus:border-sky-500/40 focus:outline-none p-2.5 rounded-lg text-white text-xs font-mono"
+                      placeholder="https://images.unsplash.com/... or paste standard image link"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1018,15 +1222,52 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Active projects in local list</span>
-                      <button 
-                        onClick={startAddProject}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans"
-                      >
-                        <Plus size={12} />
-                        <span>Add New Project</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadProjectsTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseProjectsExcel(file);
+                                if (imported.length > 0) {
+                                  portfolio.setProjects([...portfolio.projects, ...imported]);
+                                  triggerFeedback(`Successfully imported ${imported.length} project(s) via Excel!`);
+                                } else {
+                                  triggerFeedback('No projects found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddProject}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add New Project</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
@@ -1259,15 +1500,60 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Technical skills library ledger</span>
-                      <button 
-                        onClick={startAddSkill}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all"
-                      >
-                        <Plus size={12} />
-                        <span>Add New Technology</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadSkillsTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseSkillsExcel(file);
+                                if (imported.length > 0) {
+                                  // filter out skills that already exist by name
+                                  const existingNames = new Set(portfolio.technologies.map(t => t.name.toLowerCase()));
+                                  const filtered = imported.filter(t => !existingNames.has(t.name.toLowerCase()));
+                                  
+                                  if (filtered.length > 0) {
+                                    portfolio.setTechnologies([...portfolio.technologies, ...filtered]);
+                                    triggerFeedback(`Successfully imported ${filtered.length} skill(s) via Excel!`);
+                                  } else {
+                                    triggerFeedback('All imported skills already exist in your portfolio.', 'error');
+                                  }
+                                } else {
+                                  triggerFeedback('No skills found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddSkill}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add New Technology</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1387,12 +1673,52 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Certificates validation ledger</span>
-                      <button onClick={startAddCert} className="flex items-center gap-1 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all">
-                        <Plus size={12} />
-                        <span>Add Certificate</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadCertsTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseCertsExcel(file);
+                                if (imported.length > 0) {
+                                  portfolio.setCertificates([...portfolio.certificates, ...imported]);
+                                  triggerFeedback(`Successfully imported ${imported.length} certificate(s) via Excel!`);
+                                } else {
+                                  triggerFeedback('No certificates found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddCert}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add Certificate</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
@@ -1460,16 +1786,42 @@ service cloud.firestore {
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] text-neutral-500 font-semibold uppercase">Clearance Status</label>
-                        <select 
-                          value={certForm.status} 
-                          onChange={(e) => setCertForm({ ...certForm, status: e.target.value as any })}
-                          className="w-full bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white"
-                        >
-                          <option value="VERIFIED">Verified Secure</option>
-                          <option value="COMPLETED">Completed</option>
-                        </select>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-neutral-500 font-semibold uppercase">Clearance Status</label>
+                          <select 
+                            value={certForm.status} 
+                            onChange={(e) => setCertForm({ ...certForm, status: e.target.value as any })}
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white"
+                          >
+                            <option value="VERIFIED">Verified Secure</option>
+                            <option value="COMPLETED">Completed</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Upload size={10} /> Certificate PDF/Image (URL or Upload)
+                          </label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={certForm.credentialUrl || ''} 
+                              onChange={(e) => setCertForm({ ...certForm, credentialUrl: e.target.value })}
+                              placeholder="https://site.com/certificate.pdf"
+                              className="flex-grow bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white text-[11px]"
+                            />
+                            <label className="bg-neutral-900 border border-neutral-800 hover:border-sky-500/20 text-sky-400 px-3 py-2 rounded text-[10px] font-semibold cursor-pointer shrink-0">
+                              Upload
+                              <input 
+                                type="file" 
+                                accept=".pdf,application/pdf,image/*"
+                                onChange={(e) => handleFileChange(e, (base64) => setCertForm({ ...certForm, credentialUrl: base64 }))}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1492,21 +1844,87 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Hackathons registry ledger</span>
-                      <button onClick={startAddHack} className="flex items-center gap-1 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all">
-                        <Plus size={12} />
-                        <span>Add Hackathon</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadHacksTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseHacksExcel(file);
+                                if (imported.length > 0) {
+                                  portfolio.setHackathons([...portfolio.hackathons, ...imported]);
+                                  triggerFeedback(`Successfully imported ${imported.length} hackathon(s) via Excel!`);
+                                } else {
+                                  triggerFeedback('No hackathons found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddHack}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add Hackathon</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.hackathons.map(hack => (
                         <div key={hack.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex justify-between items-center gap-4">
-                          <div className="space-y-0.5">
-                            <span className="text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-semibold uppercase tracking-wide">{hack.position}</span>
-                            <h5 className="font-sans text-xs font-bold text-white pt-1">{hack.title}</h5>
-                            <p className="font-sans text-[11px] text-neutral-500">{hack.location} • {hack.year}</p>
+                          <div className="flex items-center gap-3">
+                            {(hack.participationCertUrl || hack.winningCertUrl) && (
+                              <div className="flex gap-1.5 shrink-0">
+                                {hack.winningCertUrl && (
+                                  <div className="w-8 h-8 rounded border border-neutral-800 bg-neutral-950 overflow-hidden flex items-center justify-center relative group" title="Winning Certificate">
+                                    {hack.winningCertUrl.startsWith('data:image/') ? (
+                                      <img src={hack.winningCertUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <FileText size={12} className="text-amber-400" />
+                                    )}
+                                    <span className="absolute bottom-0 right-0 bg-amber-500 text-[5px] text-black px-0.5 font-bold">WIN</span>
+                                  </div>
+                                )}
+                                {hack.participationCertUrl && (
+                                  <div className="w-8 h-8 rounded border border-neutral-800 bg-neutral-950 overflow-hidden flex items-center justify-center relative group" title="Participation Certificate">
+                                    {hack.participationCertUrl.startsWith('data:image/') ? (
+                                      <img src={hack.participationCertUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <FileText size={12} className="text-blue-400" />
+                                    )}
+                                    <span className="absolute bottom-0 right-0 bg-blue-500 text-[5px] text-white px-0.5 font-bold">PART</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-semibold uppercase tracking-wide">{hack.position}</span>
+                              <h5 className="font-sans text-xs font-bold text-white pt-1">{hack.title.replace(/_/g, ' ')}</h5>
+                              <p className="font-sans text-[11px] text-neutral-500">{hack.location} • {hack.year}</p>
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={() => startEditHack(hack)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded">Edit</button>
@@ -1589,6 +2007,56 @@ service cloud.firestore {
                           className="w-full bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white resize-none"
                         />
                       </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Upload size={10} /> Winning Certificate (URL or Upload)
+                          </label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={hackForm.winningCertUrl || ''} 
+                              onChange={(e) => setHackForm({ ...hackForm, winningCertUrl: e.target.value })}
+                              placeholder="https://site.com/winning_cert.png"
+                              className="flex-grow bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white text-[11px]"
+                            />
+                            <label className="bg-neutral-900 border border-neutral-800 hover:border-sky-500/20 text-sky-400 px-3 py-2 rounded text-[10px] font-semibold cursor-pointer shrink-0">
+                              Upload
+                              <input 
+                                type="file" 
+                                accept=".pdf,application/pdf,image/*"
+                                onChange={(e) => handleFileChange(e, (base64) => setHackForm({ ...hackForm, winningCertUrl: base64 }))}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                            <Upload size={10} /> Participation Certificate (URL or Upload)
+                          </label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              value={hackForm.participationCertUrl || ''} 
+                              onChange={(e) => setHackForm({ ...hackForm, participationCertUrl: e.target.value })}
+                              placeholder="https://site.com/participation_cert.png"
+                              className="flex-grow bg-neutral-950 border border-neutral-800 focus:outline-none p-2 rounded text-white text-[11px]"
+                            />
+                            <label className="bg-neutral-900 border border-neutral-800 hover:border-sky-500/20 text-sky-400 px-3 py-2 rounded text-[10px] font-semibold cursor-pointer shrink-0">
+                              Upload
+                              <input 
+                                type="file" 
+                                accept=".pdf,application/pdf,image/*"
+                                onChange={(e) => handleFileChange(e, (base64) => setHackForm({ ...hackForm, participationCertUrl: base64 }))}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="pt-2 flex gap-3">
@@ -1610,12 +2078,52 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Chronological employment experiences</span>
-                      <button onClick={startAddExp} className="flex items-center gap-1 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all">
-                        <Plus size={12} />
-                        <span>Add Employment Node</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadExperienceTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseExperienceExcel(file);
+                                if (imported.length > 0) {
+                                  portfolio.setExperiences([...portfolio.experiences, ...imported]);
+                                  triggerFeedback(`Successfully imported ${imported.length} experience(s) via Excel!`);
+                                } else {
+                                  triggerFeedback('No experience entries found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddExp}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add Employment Node</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
@@ -1724,12 +2232,52 @@ service cloud.firestore {
               <div className="space-y-6">
                 {editingId === null ? (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-850 pb-3">
                       <span className="font-sans text-xs font-semibold text-neutral-300">Academic accomplishments registry</span>
-                      <button onClick={startAddEdu} className="flex items-center gap-1 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all">
-                        <Plus size={12} />
-                        <span>Add Academic Level</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button 
+                          onClick={downloadEducationTemplate}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-sky-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer"
+                          title="Download Excel Import Template"
+                        >
+                          <Download size={12} />
+                          <span>Get Template</span>
+                        </button>
+                        
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 border border-neutral-800 text-emerald-400 font-semibold rounded-lg text-[11px] hover:bg-neutral-800 transition-all font-sans cursor-pointer">
+                          <Upload size={12} />
+                          <span>Import Excel</span>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const imported = await parseEducationExcel(file);
+                                if (imported.length > 0) {
+                                  portfolio.setEducations([...portfolio.educations, ...imported]);
+                                  triggerFeedback(`Successfully imported ${imported.length} academic record(s) via Excel!`);
+                                } else {
+                                  triggerFeedback('No academic records found in Excel file.', 'error');
+                                }
+                              } catch (err) {
+                                triggerFeedback('Failed to parse Excel file.', 'error');
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        <button 
+                          onClick={startAddEdu}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                        >
+                          <Plus size={12} />
+                          <span>Add Academic Level</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">

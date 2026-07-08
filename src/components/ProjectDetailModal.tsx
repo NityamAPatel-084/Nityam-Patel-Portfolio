@@ -2,10 +2,62 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Project } from '../types';
 import { X, ExternalLink, Github, Terminal, Cpu, Play, Award, CheckCircle } from 'lucide-react';
+import { useResolvedUrl } from '../hooks/useResolvedUrl';
+import { ProjectThumbnail } from './ProjectSlider';
 
 interface ProjectDetailModalProps {
   project: Project | null;
   onClose: () => void;
+}
+
+function ProjectDetailMedia({ project }: { project: any }) {
+  const imageUrl = project.imageUrl;
+  const videoUrl = project.videoUrl; // PDF report
+  const resolvedImgUrl = useResolvedUrl(imageUrl);
+  const resolvedPdfUrl = useResolvedUrl(videoUrl);
+
+  const isImgPdf = imageUrl ? (imageUrl.startsWith('data:application/pdf') || 
+                  imageUrl.endsWith('.pdf') || 
+                  (resolvedImgUrl.startsWith('blob:') && imageUrl.includes('application/pdf'))) : false;
+
+  const showPdfUrl = isImgPdf ? resolvedImgUrl : (videoUrl ? resolvedPdfUrl : null);
+  const hasImage = resolvedImgUrl && !isImgPdf;
+
+  if (showPdfUrl) {
+    return (
+      <div className="w-full h-[320px] bg-neutral-950 border border-neutral-800 rounded-lg overflow-hidden relative">
+        <iframe 
+          src={`${showPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+          className="w-full h-full border-none bg-white scale-[1.02]"
+          style={{ backgroundColor: '#ffffff' }}
+          title={project.title}
+        />
+        <div className="absolute inset-0 bg-transparent pointer-events-none" />
+      </div>
+    );
+  }
+
+  if (hasImage) {
+    return (
+      <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden flex items-center justify-center p-2 relative">
+        <img 
+          src={resolvedImgUrl} 
+          alt={project.title} 
+          className="max-w-full max-h-full object-contain rounded" 
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">
+          IMAGE // MOUNTED
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden relative">
+      <ProjectThumbnail projectId={project.id} />
+    </div>
+  );
 }
 
 export default function ProjectDetailModal({ project, onClose }: ProjectDetailModalProps) {
@@ -127,9 +179,11 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
           {/* Tab Panes */}
           <div className="border-t border-neutral-800/60 pt-6">
             {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Description Column */}
-                <div className="md:col-span-2 space-y-4">
+              <div className="space-y-6">
+                <ProjectDetailMedia project={project} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Description Column */}
+                  <div className="md:col-span-2 space-y-4">
                   <h3 className="font-sans text-xs font-bold tracking-wider text-neutral-400 uppercase">
                     Description &amp; Architecture
                   </h3>
@@ -172,6 +226,7 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             )}
 
@@ -261,7 +316,7 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
           <span>View Code</span>
         </a>
         <a
-          href="https://activetheory.net"
+          href={project.link ? (project.link.trim().startsWith('http') ? project.link.trim() : `https://${project.link.trim()}`) : "https://activetheory.net"}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-2 px-4 py-2 bg-sky-500/15 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 hover:border-sky-500/40 transition-all font-sans text-xs font-semibold rounded-lg"
