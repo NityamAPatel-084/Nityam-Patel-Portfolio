@@ -172,7 +172,6 @@ function ProjectMediaThumbnail({ project }: { project: any }) {
           <img 
             src={resolvedUrl} 
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-            referrerPolicy="no-referrer" 
             alt={project.title} 
           />
           <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">
@@ -243,10 +242,9 @@ export default function ProjectSlider({ onProjectClick }: ProjectSliderProps) {
         </div>
       </div>
 
-      {/* Expanded Redesigned Horizontal Card Layout: Thumbnail gets more area than text content (58% vs 42%) */}
       <motion.div 
         layout
-        className="grid grid-cols-1 xl:grid-cols-2 gap-8"
+        className="grid grid-cols-1 gap-8"
       >
         <AnimatePresence mode="popLayout">
           {projects.map((project) => (

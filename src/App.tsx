@@ -16,7 +16,7 @@ import DeployModal from './components/DeployModal';
 import { Project } from './types';
 import { usePortfolio } from './context/PortfolioContext';
 import { getResumeFromFirestore, verifyPasswordChallenge } from './lib/firebase';
-import { Cpu, Wifi, ShieldAlert, Clock, Terminal, CheckCircle2, Lock, X } from 'lucide-react';
+import { Cpu, Wifi, ShieldAlert, Clock, Terminal, CheckCircle2, Lock, X, Menu } from 'lucide-react';
 import { ScrollReveal } from './components/ScrollReveal';
 
 export default function App() {
@@ -25,6 +25,7 @@ export default function App() {
   const [showDeploy, setShowDeploy] = useState(false);
   const [timeStr, setTimeStr] = useState('');
   const [isReady, setIsReady] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const { showAdmin, setShowAdmin, profile, adminPassword, adminCodeword } = usePortfolio();
   const [isDownloadingResume, setIsDownloadingResume] = useState(false);
@@ -223,22 +224,35 @@ export default function App() {
         onEducationClick={() => handleSectionChange('education')}
         onResumeClick={handleResumeDownload}
         onDeployClick={() => setShowDeploy(true)}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Viewport Frame */}
-      <main className="flex-grow pl-52 min-h-screen flex flex-col justify-between relative z-10">
+      <main className="flex-grow pl-0 md:pl-52 min-h-screen flex flex-col justify-between relative z-10">
         
         {/* Top Professional Navigation Bar */}
         <header className="px-8 py-4 border-b border-neutral-800/40 bg-[#090a0f]/60 backdrop-blur-md flex justify-between items-center select-none text-xs text-neutral-400">
-          <div className="flex items-center gap-2.5 font-medium">
-            <span 
-              className="text-neutral-500 hover:text-neutral-300 cursor-pointer transition-colors"
-              onClick={() => handleSectionChange('home')}
+          <div className="flex items-center gap-3.5 font-medium">
+            {/* Hamburger Menu Toggle Button (Mobile viewports only) */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-1.5 -ml-1.5 hover:bg-neutral-900/50 rounded-lg text-neutral-400 hover:text-white transition-colors"
+              title="Open navigation menu"
             >
-              Portfolio
-            </span>
-            <span className="text-neutral-700 font-mono text-[10px]">/</span>
-            <span className="text-white capitalize font-semibold tracking-wide">{activeSection}</span>
+              <Menu size={16} />
+            </button>
+
+            <div className="flex items-center gap-2.5">
+              <span 
+                className="text-neutral-500 hover:text-neutral-300 cursor-pointer transition-colors"
+                onClick={() => handleSectionChange('home')}
+              >
+                Portfolio
+              </span>
+              <span className="text-neutral-700 font-mono text-[10px]">/</span>
+              <span className="text-white capitalize font-semibold tracking-wide">{activeSection}</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-6">

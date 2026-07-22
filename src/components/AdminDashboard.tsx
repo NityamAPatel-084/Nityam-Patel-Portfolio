@@ -356,7 +356,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       client: sanitizePlainString(projectForm.client || ''),
       link: sanitizePlainString(projectForm.link || ''),
       imageUrl: projectForm.imageUrl || '',
-      videoUrl: sanitizePlainString(projectForm.videoUrl || ''),
+      videoUrl: projectForm.videoUrl || '',
       details: sanitizeHtmlContent(projectForm.details || '')
     };
 
@@ -451,7 +451,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       issuer: sanitizePlainString(certForm.issuer || ''),
       date: sanitizePlainString(certForm.date || ''),
       credentialId: sanitizePlainString(certForm.credentialId || ''),
-      credentialUrl: sanitizePlainString(certForm.credentialUrl || ''),
+      credentialUrl: certForm.credentialUrl || '',
       status: certForm.status || 'VERIFIED'
     };
     let updated: Certificate[];

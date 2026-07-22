@@ -34,7 +34,6 @@ function CertificateThumbnail({ cert }: { cert: any }) {
           <img 
             src={resolvedUrl} 
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-            referrerPolicy="no-referrer" 
             alt={cert.title} 
           />
           <div className="absolute bottom-3 left-3 font-mono text-[9px] text-emerald-400 bg-black/75 px-2 py-0.5 border border-emerald-800/40 rounded">
@@ -211,8 +210,7 @@ export default function CertificatesList() {
         </p>
       </div>
 
-      {/* Grid of beautifully designed, expanded horizontal cards (58% thumbnail, 42% content) */}
-      <StaggerContainer className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <StaggerContainer className="grid grid-cols-1 gap-8">
         {certificates.map((cert) => (
           <StaggerItem key={cert.id}>
             <div
