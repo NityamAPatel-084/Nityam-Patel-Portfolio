@@ -1901,7 +1901,7 @@ service cloud.firestore {
                                 {hack.winningCertUrl && (
                                   <div className="w-8 h-8 rounded border border-neutral-800 bg-neutral-950 overflow-hidden flex items-center justify-center relative group" title="Winning Certificate">
                                     {hack.winningCertUrl.startsWith('data:image/') ? (
-                                      <img src={hack.winningCertUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <img src={hack.winningCertUrl} className="w-full h-full object-cover" />
                                     ) : (
                                       <FileText size={12} className="text-amber-400" />
                                     )}
@@ -1911,7 +1911,7 @@ service cloud.firestore {
                                 {hack.participationCertUrl && (
                                   <div className="w-8 h-8 rounded border border-neutral-800 bg-neutral-950 overflow-hidden flex items-center justify-center relative group" title="Participation Certificate">
                                     {hack.participationCertUrl.startsWith('data:image/') ? (
-                                      <img src={hack.participationCertUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <img src={hack.participationCertUrl} className="w-full h-full object-cover" />
                                     ) : (
                                       <FileText size={12} className="text-blue-400" />
                                     )}

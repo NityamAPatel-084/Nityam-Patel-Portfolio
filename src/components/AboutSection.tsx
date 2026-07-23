@@ -106,7 +106,6 @@ export default function AboutSection({ onResumeClick }: AboutSectionProps) {
                   src={profile.avatarUrl} 
                   alt={profile.name} 
                   className="w-full h-full object-cover rounded-3xl relative z-10"
-                  referrerPolicy="no-referrer"
                 />
                 
                 {/* Soft overlay halo vignette to blend the avatar borders with the container */}

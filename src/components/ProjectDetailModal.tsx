@@ -44,7 +44,6 @@ function ProjectDetailMedia({ project }: { project: any }) {
           src={resolvedImgUrl} 
           alt={project.title} 
           className="max-w-full max-h-full object-contain rounded" 
-          referrerPolicy="no-referrer"
         />
         <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">
           IMAGE // MOUNTED

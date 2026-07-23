@@ -172,6 +172,24 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     };
 
     const unsubscribes = [
+      subscribeToFirestore('settings', (data) => {
+        if (data) {
+          if (data.adminPassword) {
+            setAdminPasswordState(data.adminPassword);
+            localStorage.setItem('port_pass', data.adminPassword);
+          }
+          if (data.adminCodeword) {
+            setAdminCodewordState(data.adminCodeword);
+            localStorage.setItem('port_codeword', data.adminCodeword);
+          }
+        } else {
+          // Initialize settings document to unlock write rules for all other documents
+          saveToFirestore('settings', { 
+            adminPassword: DEFAULT_PASSWORD, 
+            adminCodeword: DEFAULT_CODEWORD 
+          });
+        }
+      }, handleSyncError),
       subscribeToFirestore('profile', (data) => {
         if (data) {
           setProfileState(data as Profile);

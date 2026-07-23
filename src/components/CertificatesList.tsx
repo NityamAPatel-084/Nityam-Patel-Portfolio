@@ -323,7 +323,6 @@ export default function CertificatesList() {
                     src={activeResolvedUrl} 
                     className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-lg" 
                     alt={activeCert.title} 
-                    referrerPolicy="no-referrer"
                   />
                 )
               ) : (

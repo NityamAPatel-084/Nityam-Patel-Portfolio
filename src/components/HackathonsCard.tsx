@@ -147,7 +147,6 @@ function HackathonCertViewer({ activeCert, onClose }: { activeCert: { url: strin
                 src={resolvedUrl} 
                 className="max-w-full max-h-[60vh] object-contain rounded" 
                 alt={activeCert.title} 
-                referrerPolicy="no-referrer"
               />
             )
           ) : (
