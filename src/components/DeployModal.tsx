@@ -12,6 +12,14 @@ export default function DeployModal({ onClose }: DeployModalProps) {
   const [logs, setLogs] = useState<string[]>([]);
 
   useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  useEffect(() => {
     setLogs([
       'Initiating secure sandbox instance...',
       'Loading interactive project logs and portfolio metadata...'

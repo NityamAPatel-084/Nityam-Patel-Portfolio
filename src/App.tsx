@@ -12,8 +12,9 @@ import ExperienceTimeline from './components/ExperienceTimeline';
 import EducationSection from './components/EducationSection';
 import ContactConsole from './components/ContactConsole';
 import AdminDashboard from './components/AdminDashboard';
+import HackathonDetailModal from './components/HackathonDetailModal';
 import DeployModal from './components/DeployModal';
-import { Project } from './types';
+import { Project, Hackathon } from './types';
 import { usePortfolio } from './context/PortfolioContext';
 import { getResumeFromFirestore, verifyPasswordChallenge } from './lib/firebase';
 import { Cpu, Wifi, ShieldAlert, Clock, Terminal, CheckCircle2, Lock, X, Menu } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function App() {
   const [timeStr, setTimeStr] = useState('');
   const [isReady, setIsReady] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedHackathon, setSelectedHackathon] = useState<Hackathon | null>(null);
 
   const { showAdmin, setShowAdmin, profile, adminPassword, adminCodeword } = usePortfolio();
   const [isDownloadingResume, setIsDownloadingResume] = useState(false);
@@ -296,7 +298,7 @@ export default function App() {
 
           <section id="section-hackathons" className="scroll-mt-28">
             <ScrollReveal direction="up">
-              <HackathonsCard />
+              <HackathonsCard onHackathonClick={(h) => setSelectedHackathon(h)} />
             </ScrollReveal>
           </section>
 
@@ -341,6 +343,12 @@ export default function App() {
           <ProjectDetailModal
             project={selectedProject}
             onClose={() => setSelectedProject(null)}
+          />
+        )}
+        {selectedHackathon && (
+          <HackathonDetailModal
+            hackathon={selectedHackathon}
+            onClose={() => setSelectedHackathon(null)}
           />
         )}
         {showDeploy && (

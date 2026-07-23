@@ -189,6 +189,14 @@ export default function CertificatesList() {
   const { certificates } = usePortfolio();
   const [activeCert, setActiveCert] = useState<any | null>(null);
 
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveCert(null);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
+
   const activeCertUrl = activeCert?.credentialUrl;
   const activeResolvedUrl = useResolvedUrl(activeCertUrl);
   const isActivePdf = activeCertUrl ? (

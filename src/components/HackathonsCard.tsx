@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Award, Trophy, MapPin, Tag, ArrowUpRight, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Award, Trophy, MapPin, Tag, ArrowUpRight, ArrowRight, HelpCircle } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { useResolvedUrl } from '../hooks/useResolvedUrl';
 
@@ -114,6 +114,14 @@ function HackathonCertViewer({ activeCert, onClose }: { activeCert: { url: strin
                 activeCert.url.endsWith('.pdf') || 
                 (resolvedUrl.startsWith('blob:') && activeCert.url.includes('application/pdf'));
 
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
   return (
     <div 
       className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4"
@@ -180,7 +188,7 @@ function HackathonCertViewer({ activeCert, onClose }: { activeCert: { url: strin
   );
 }
 
-export default function HackathonsCard() {
+export default function HackathonsCard({ onHackathonClick }: { onHackathonClick?: (hack: any) => void }) {
   const { hackathons } = usePortfolio();
   const [activeCert, setActiveCert] = useState<{ url: string; title: string } | null>(null);
 
@@ -202,6 +210,7 @@ export default function HackathonsCard() {
           <div
             key={hack.id}
             className="group relative bg-[#111827]/40 hover:bg-[#111827]/75 border border-neutral-800/80 hover:border-indigo-500/40 transition-all duration-300 flex flex-col md:flex-row h-auto md:h-[280px] backdrop-blur-md cursor-pointer shadow-lg overflow-hidden clip-corner"
+            onClick={() => onHackathonClick?.(hack)}
           >
             {/* Left Portion: Visual Thumbnail takes up 58% of card width */}
             <div className="relative w-full md:w-[58%] h-48 md:h-full overflow-hidden shrink-0 border-r-0 md:border-r border-b md:border-b-0 border-neutral-800/60 bg-[#090b11]">
@@ -277,6 +286,10 @@ export default function HackathonsCard() {
                   <div className="flex items-center gap-1">
                     <MapPin size={10} className="text-neutral-500 shrink-0" />
                     <span>{hack.location}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-medium text-[10px] text-neutral-500 group-hover:text-indigo-400 transition-colors duration-300">
+                    <span>Explore Details</span>
+                    <ArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>
               </div>

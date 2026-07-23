@@ -1,0 +1,25 @@
+# Final Fixes Walkthrough: Image Rendering and Database Persistence
+
+We have successfully resolved the lingering certificate modal image issues and fixed the database persistence error once and for all.
+
+## Verified Solutions
+
+### 1. Final Certificate Image Fixes
+- Removed the strict `referrerPolicy="no-referrer"` attribute from all remaining image elements in:
+  - [CertificatesList.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/CertificatesList.tsx) (modal popup element)
+  - [HackathonsCard.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/HackathonsCard.tsx) (modal viewer element)
+  - [ProjectDetailModal.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/ProjectDetailModal.tsx)
+  - [AboutSection.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/AboutSection.tsx) (profile avatar)
+  - [AdminDashboard.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/AdminDashboard.tsx) (hackathon status thumbnails)
+- This allows the browser to present correct referrer headers, resolving broken image displays for both uploaded and external image URLs (like Unsplash).
+
+### 2. Firestore Permanent Data Persistence Fix
+- **The Issue:** The Firestore security rules require checking a cryptographic signature based on the password stored in the `/portfolio_data/settings` document. However, since the database was initialized completely empty and the settings document was never automatically created, the security rule evaluator threw an error. This silently blocked all subsequent writes (profiles, projects, certificates, etc.) to the database, reverting the page to factory defaults upon reloading or changing ports.
+- **The Fix ([PortfolioContext.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/context/PortfolioContext.tsx)):**
+  - Added a subscription to the `settings` document on mount.
+  - If the `settings` document does not exist in Firestore, the app immediately creates it using default credentials (`al` / `/al`).
+  - Because security rules permit the creation of a new settings document if it doesn't exist, this initialization succeeds, unlocking the database rules for all collections. All profile data edits, project uploads, and custom details will now write successfully to Firestore and persist permanently.
+
+## Verification
+- Project successfully compiled (`npm run build`).
+- Commits successfully pushed to GitHub.

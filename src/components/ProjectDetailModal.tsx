@@ -75,6 +75,14 @@ export default function ProjectDetailModal({ project, onClose }: ProjectDetailMo
     ]);
   }, [project]);
 
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
   if (!project) return null;
 
   // Run dynamic testing sandbox log simulations
