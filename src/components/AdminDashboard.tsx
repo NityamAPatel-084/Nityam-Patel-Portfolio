@@ -6,7 +6,7 @@ import {
   Download, ChevronUp, ChevronDown, GripVertical
 } from 'lucide-react';
 import { usePortfolio, Profile, Sections } from '../context/PortfolioContext';
-import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount } from '../types';
+import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount, AboutPillar } from '../types';
 import { isFirebaseConfigured, saveResumeToFirestore } from '../lib/firebase';
 import { sanitizePlainString, sanitizeHtmlContent } from '../lib/sanitize';
 import { 
@@ -90,6 +90,10 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     platform: '', url: ''
   });
 
+  const [pillarForm, setPillarForm] = useState<Partial<AboutPillar>>({
+    category: '', title: '', description: '', icon: 'Terminal'
+  });
+
   // Success / error feedbacks
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -124,6 +128,9 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
   const reorderEdus = (index: number, direction: 'up' | 'down') => {
     portfolio.setEducations(moveItem(portfolio.educations, index, direction));
+  };
+  const reorderPillars = (index: number, direction: 'up' | 'down') => {
+    portfolio.setPillars(moveItem(portfolio.pillars || [], index, direction));
   };
 
   // Drag and Drop States
@@ -185,6 +192,11 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
       const [draggedItem] = items.splice(draggedIndex, 1);
       items.splice(index, 0, draggedItem);
       portfolio.setEducations(items);
+    } else if (type === 'pillars') {
+      const items = [...(portfolio.pillars || [])];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setPillars(items);
     }
 
     setDraggedIndex(null);
@@ -762,6 +774,64 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     }
   };
 
+  // ================= PILLARS HANDLERS =================
+  const startEditPillar = (p: AboutPillar) => {
+    setEditingId(p.id);
+    setPillarForm({
+      category: p.category,
+      title: p.title,
+      description: p.description,
+      icon: p.icon
+    });
+  };
+
+  const startAddPillar = () => {
+    setEditingId('new_pillar');
+    setPillarForm({
+      category: '',
+      title: '',
+      description: '',
+      icon: 'Terminal'
+    });
+  };
+
+  const savePillar = () => {
+    const category = sanitizePlainString(pillarForm.category || '');
+    const title = sanitizePlainString(pillarForm.title || '');
+    const description = sanitizePlainString(pillarForm.description || '');
+    const icon = pillarForm.icon || 'Terminal';
+
+    if (!category || !title || !description) {
+      triggerFeedback('All fields (Category, Title, and Description) are required.', 'error');
+      return;
+    }
+
+    const newPillar: AboutPillar = {
+      id: editingId === 'new_pillar' ? 'pillar-' + Date.now() : editingId!,
+      category,
+      title,
+      description,
+      icon: icon as any
+    };
+
+    let updated: AboutPillar[];
+    if (editingId === 'new_pillar') {
+      updated = [...(portfolio.pillars || []), newPillar];
+    } else {
+      updated = (portfolio.pillars || []).map(p => p.id === editingId ? newPillar : p);
+    }
+    portfolio.setPillars(updated);
+    setEditingId(null);
+    triggerFeedback('Professional pillar saved successfully.');
+  };
+
+  const deletePillar = (id: string) => {
+    if (window.confirm('Remove this core professional pillar?')) {
+      portfolio.setPillars((portfolio.pillars || []).filter(p => p.id !== id));
+      triggerFeedback('Pillar deleted.');
+    }
+  };
+
   const sectionTabMap: Record<string, { id: string; label: string; icon: any }> = {
     projects: { id: 'projects', label: 'Manage Projects', icon: Cpu },
     technologies: { id: 'skills', label: 'Manage Skills', icon: Code },
@@ -776,6 +846,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   const sidebarTabs = [
     { id: 'profile', label: 'Identity & Layout', icon: User, isDraggable: false },
     { id: 'socials', label: 'Social Networks', icon: Share2, isDraggable: false },
+    { id: 'pillars', label: 'Professional Pillars', icon: Terminal, isDraggable: false },
     ...draggableSectionKeys.map((key) => {
       const tab = sectionTabMap[key];
       return {
@@ -1384,6 +1455,171 @@ service cloud.firestore {
                       <button 
                         onClick={() => setEditingId(null)} 
                         className="px-4 py-2 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 rounded transition-all text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: MANAGE PROFESSIONAL PILLARS */}
+            {activeTab === 'pillars' && (
+              <div className="space-y-6 animate-fadeIn">
+                {editingId === null ? (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center border-b border-neutral-850 pb-3">
+                      <span className="font-sans text-xs font-semibold text-neutral-300">Core Professional Pillars (About Me)</span>
+                      <button 
+                        onClick={startAddPillar}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white font-semibold rounded-lg text-[11px] hover:bg-sky-600 transition-all font-sans cursor-pointer"
+                      >
+                        <Plus size={12} />
+                        <span>Add Pillar</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {(portfolio.pillars || []).map((pillar, index) => (
+                        <div 
+                          key={pillar.id} 
+                          draggable={readyToDragId === pillar.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'pillars');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'pillars')}
+                          onDrop={(e) => handleDrop(e, index, 'pillars')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3.5 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'pillars'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'pillars' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(pillar.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderPillars(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderPillars(index, 'down')}
+                              disabled={index === (portfolio.pillars || []).length - 1}
+                              className={`p-0.5 rounded transition-all ${index === (portfolio.pillars || []).length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          {/* Card Content */}
+                          <div className="space-y-1 flex-grow min-w-0">
+                            <span className="font-mono text-[9px] text-sky-400 uppercase tracking-wide inline-block bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">
+                              {pillar.icon} • {pillar.category}
+                            </span>
+                            <h5 className="font-sans text-xs font-bold text-white truncate">{pillar.title}</h5>
+                            <p className="text-neutral-400 text-[11px] font-sans truncate">{pillar.description}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
+                            <button onClick={() => startEditPillar(pillar)} className="px-2.5 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
+                            <button onClick={() => deletePillar(pillar.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-neutral-900/20 border border-neutral-850 rounded-xl p-5 space-y-4 max-w-xl">
+                    <h4 className="font-sans text-xs font-bold text-white uppercase border-b border-neutral-850 pb-2">
+                      {editingId === 'new_pillar' ? 'Configure New Core Pillar' : 'Update Core Pillar configuration'}
+                    </h4>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-neutral-500 font-semibold uppercase">Category Tag</label>
+                        <input 
+                          type="text" 
+                          value={pillarForm.category} 
+                          onChange={(e) => setPillarForm({ ...pillarForm, category: e.target.value })}
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-sky-500/40 focus:outline-none p-2.5 rounded-lg text-white font-sans text-xs"
+                          placeholder="e.g. 01 / Creative Code"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-neutral-500 font-semibold uppercase">Title Headline</label>
+                        <input 
+                          type="text" 
+                          value={pillarForm.title} 
+                          onChange={(e) => setPillarForm({ ...pillarForm, title: e.target.value })}
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-sky-500/40 focus:outline-none p-2.5 rounded-lg text-white font-sans text-xs"
+                          placeholder="e.g. Interactive Engineering"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-neutral-500 font-semibold uppercase">Description Detail</label>
+                        <textarea 
+                          value={pillarForm.description} 
+                          onChange={(e) => setPillarForm({ ...pillarForm, description: e.target.value })}
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-sky-500/40 focus:outline-none p-2.5 rounded-lg text-white font-sans text-xs h-24 resize-none"
+                          placeholder="Provide a detailed description of this professional pillar..."
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-neutral-500 font-semibold uppercase">Pillar Icon</label>
+                        <select 
+                          value={pillarForm.icon} 
+                          onChange={(e) => setPillarForm({ ...pillarForm, icon: e.target.value as any })}
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-sky-500/40 focus:outline-none p-2.5 rounded-lg text-white font-sans text-xs"
+                        >
+                          <option value="Terminal">Terminal (&gt;_)</option>
+                          <option value="Cpu">CPU (处理器)</option>
+                          <option value="Shield">Shield (盾)</option>
+                          <option value="Activity">Activity (心电图)</option>
+                          <option value="Award">Award (奖章)</option>
+                          <option value="Code">Code (代码)</option>
+                          <option value="GraduationCap">Graduation Cap (学历)</option>
+                          <option value="Globe">Globe (网页/全球)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex gap-3">
+                      <button 
+                        onClick={savePillar} 
+                        className="flex items-center gap-1 px-4 py-2 bg-sky-500 text-white font-semibold rounded hover:bg-sky-600 transition-all text-xs cursor-pointer"
+                      >
+                        <Save size={12} />
+                        <span>Save Pillar</span>
+                      </button>
+                      <button 
+                        onClick={() => setEditingId(null)} 
+                        className="px-4 py-2 bg-neutral-800 hover:bg-neutral-750 text-neutral-300 rounded transition-all text-xs cursor-pointer"
                       >
                         Cancel
                       </button>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Project, Certificate, Technology, Hackathon, Experience, Education, SocialAccount } from '../types';
-import { PROJECTS, CERTIFICATES, TECHNOLOGIES, HACKATHONS, EXPERIENCES, EDUCATIONS } from '../data';
+import { Project, Certificate, Technology, Hackathon, Experience, Education, SocialAccount, AboutPillar } from '../types';
+import { PROJECTS, CERTIFICATES, TECHNOLOGIES, HACKATHONS, EXPERIENCES, EDUCATIONS, PILLARS } from '../data';
 import { isFirebaseConfigured, saveToFirestore, subscribeToFirestore } from '../lib/firebase';
 
 export interface Profile {
@@ -41,6 +41,7 @@ export interface PortfolioContextType {
   hackathons: Hackathon[];
   experiences: Experience[];
   educations: Education[];
+  pillars: AboutPillar[];
   adminPassword: string;
   adminCodeword: string;
   showAdmin: boolean;
@@ -55,6 +56,7 @@ export interface PortfolioContextType {
   setHackathons: (hackathons: Hackathon[]) => void;
   setExperiences: (experiences: Experience[]) => void;
   setEducations: (educations: Education[]) => void;
+  setPillars: (pillars: AboutPillar[]) => void;
   setAdminPassword: (password: string) => void;
   setAdminCodeword: (codeword: string) => void;
   socials: SocialAccount[];
@@ -110,6 +112,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [hackathons, setHackathonsState] = useState<Hackathon[]>(HACKATHONS);
   const [experiences, setExperiencesState] = useState<Experience[]>(EXPERIENCES);
   const [educations, setEducationsState] = useState<Education[]>(EDUCATIONS);
+  const [pillars, setPillarsState] = useState<AboutPillar[]>(PILLARS);
   const [adminPassword, setAdminPasswordState] = useState<string>(DEFAULT_PASSWORD);
   const [adminCodeword, setAdminCodewordState] = useState<string>(DEFAULT_CODEWORD);
   const [socials, setSocialsState] = useState<SocialAccount[]>(DEFAULT_SOCIALS);
@@ -163,6 +166,9 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
       const storedSocials = localStorage.getItem('port_socials');
       if (storedSocials) setSocialsState(JSON.parse(storedSocials));
+
+      const storedPillars = localStorage.getItem('port_pillars');
+      if (storedPillars) setPillarsState(JSON.parse(storedPillars));
     } catch (e) {
       console.error('Error reading localStorage:', e);
     }
@@ -245,6 +251,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         if (data && data.list) {
           setSocialsState(data.list as SocialAccount[]);
           localStorage.setItem('port_socials', JSON.stringify(data.list));
+        }
+      }, handleSyncError),
+      subscribeToFirestore('pillars', (data) => {
+        if (data && data.list) {
+          setPillarsState(data.list as AboutPillar[]);
+          localStorage.setItem('port_pillars', JSON.stringify(data.list));
         }
       }, handleSyncError),
     ];
@@ -343,6 +355,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const setPillars = (newVal: AboutPillar[]) => {
+    setPillarsState(newVal);
+    localStorage.setItem('port_pillars', JSON.stringify(newVal));
+    if (isFirebaseConfigured) {
+      saveToFirestore('pillars', { list: newVal });
+    }
+  };
+
   const DEFAULT_SECTION_ORDER = [
     'home',
     'technologies',
@@ -374,6 +394,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     setHackathons(HACKATHONS);
     setExperiences(EXPERIENCES);
     setEducations(EDUCATIONS);
+    setPillars(PILLARS);
     setAdminPassword(DEFAULT_PASSWORD);
     setAdminCodeword(DEFAULT_CODEWORD);
     setSocials(DEFAULT_SOCIALS);
@@ -391,6 +412,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       hackathons,
       experiences,
       educations,
+      pillars,
       adminPassword,
       adminCodeword,
       showAdmin,
@@ -407,6 +429,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       setHackathons,
       setExperiences,
       setEducations,
+      setPillars,
       setAdminPassword,
       setAdminCodeword,
       resetToDefault,

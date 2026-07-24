@@ -1,4 +1,4 @@
-import { Project, Certificate, Technology, Hackathon, Experience, Education } from './types';
+import { Project, Certificate, Technology, Hackathon, Experience, Education, AboutPillar } from './types';
 
 export const PROJECTS: Project[] = [
   {
@@ -232,3 +232,28 @@ export const EDUCATIONS: Education[] = [
     details: 'Specialization in Computer Graphics, Human-Computer Interaction, and Neural Computation. Recipient of Creative Excellence Scholarship.'
   }
 ];
+
+export const PILLARS: AboutPillar[] = [
+  {
+    id: 'pillar-1',
+    category: '01 / Creative Code',
+    title: 'Interactive Engineering',
+    description: 'Constructing rich mathematical interactive canvases, high-fidelity WebGL graphics layouts, and procedural fluid systems optimized for low-latency browser rendering.',
+    icon: 'Terminal'
+  },
+  {
+    id: 'pillar-2',
+    category: '02 / Architecture',
+    title: 'Full-Stack Systems',
+    description: 'Developing backend microservices in Rust & Go, stream processing computing nodes, and scalable web infrastructures that prioritize memory safety and peak operational speed.',
+    icon: 'Cpu'
+  },
+  {
+    id: 'pillar-3',
+    category: '03 / Principles',
+    title: 'Pragmatic Execution',
+    description: 'Structuring modular code, precise performance metrics tracking, and responsive user experiences built upon durable foundations and optimized client states.',
+    icon: 'Shield'
+  }
+];
+

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { FileDown, Terminal, Sparkles, Cpu, Shield, HelpCircle, Github, Linkedin, Twitter, Youtube, Instagram, Twitch, Facebook, Mail, Globe } from 'lucide-react';
+import { 
+  FileDown, Terminal, Sparkles, Cpu, Shield, HelpCircle, 
+  Github, Linkedin, Twitter, Youtube, Instagram, Twitch, Facebook, Mail, Globe,
+  Activity, Award, Code, GraduationCap
+} from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 
 interface AboutSectionProps {
@@ -8,7 +12,26 @@ interface AboutSectionProps {
 }
 
 export default function AboutSection({ onResumeClick }: AboutSectionProps) {
-  const { profile, socials } = usePortfolio();
+  const { profile, socials, pillars } = usePortfolio();
+
+  const getPillarIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Terminal': return <Terminal size={16} />;
+      case 'Cpu': return <Cpu size={16} />;
+      case 'Shield': return <Shield size={16} />;
+      case 'Activity': return <Activity size={16} />;
+      case 'Award': return <Award size={16} />;
+      case 'Code': return <Code size={16} />;
+      case 'GraduationCap': return <GraduationCap size={16} />;
+      case 'Globe': return <Globe size={16} />;
+      default: return <Terminal size={16} />;
+    }
+  };
+
+  const getPillarColor = (index: number) => {
+    const colors = ['text-sky-400', 'text-indigo-400', 'text-emerald-400', 'text-rose-400', 'text-amber-400', 'text-violet-400'];
+    return colors[index % colors.length];
+  };
   
   // Track mouse coordinates for interactive 3D Parallax Tilt effect
   const [coords, setCoords] = useState({ x: 0, y: 0, active: false });
@@ -170,40 +193,22 @@ export default function AboutSection({ onResumeClick }: AboutSectionProps) {
       </div>
 
       {/* Grid of Core Professional Pillars */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#111827]/40 border border-neutral-800/80 p-5 clip-corner-sm backdrop-blur-md space-y-3">
-          <div className="flex items-center gap-2.5 text-sky-400">
-            <Terminal size={16} />
-            <span className="font-mono text-[10px] tracking-wider font-semibold uppercase">01 / Creative Code</span>
-          </div>
-          <h3 className="font-sans text-sm font-bold text-white">Interactive Engineering</h3>
-          <p className="font-sans text-xs text-neutral-400 leading-relaxed">
-            Constructing rich mathematical interactive canvases, high-fidelity WebGL graphics layouts, and procedural fluid systems optimized for low-latency browser rendering.
-          </p>
+      {pillars.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {pillars.map((pillar, idx) => (
+            <div key={pillar.id} className="bg-[#111827]/40 border border-neutral-800/80 p-5 clip-corner-sm backdrop-blur-md space-y-3">
+              <div className={`flex items-center gap-2.5 ${getPillarColor(idx)}`}>
+                {getPillarIcon(pillar.icon)}
+                <span className="font-mono text-[10px] tracking-wider font-semibold uppercase">{pillar.category}</span>
+              </div>
+              <h3 className="font-sans text-sm font-bold text-white">{pillar.title}</h3>
+              <p className="font-sans text-xs text-neutral-400 leading-relaxed">
+                {pillar.description}
+              </p>
+            </div>
+          ))}
         </div>
-
-        <div className="bg-[#111827]/40 border border-neutral-800/80 p-5 clip-corner-sm backdrop-blur-md space-y-3">
-          <div className="flex items-center gap-2.5 text-indigo-400">
-            <Cpu size={16} />
-            <span className="font-mono text-[10px] tracking-wider font-semibold uppercase">02 / Architecture</span>
-          </div>
-          <h3 className="font-sans text-sm font-bold text-white">Full-Stack Systems</h3>
-          <p className="font-sans text-xs text-neutral-400 leading-relaxed">
-            Developing backend microservices in Rust & Go, stream processing computing nodes, and scalable web infrastructures that prioritize memory safety and peak operational speed.
-          </p>
-        </div>
-
-        <div className="bg-[#111827]/40 border border-neutral-800/80 p-5 clip-corner-sm backdrop-blur-md space-y-3">
-          <div className="flex items-center gap-2.5 text-emerald-400">
-            <Shield size={16} />
-            <span className="font-mono text-[10px] tracking-wider font-semibold uppercase">03 / Principles</span>
-          </div>
-          <h3 className="font-sans text-sm font-bold text-white">Pragmatic Execution</h3>
-          <p className="font-sans text-xs text-neutral-400 leading-relaxed">
-            Structuring modular code, precise performance metrics tracking, and responsive user experiences built upon durable foundations and optimized client states.
-          </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

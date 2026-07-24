@@ -68,3 +68,11 @@ export interface SocialAccount {
   platform: string;
   url: string;
 }
+
+export interface AboutPillar {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  icon: 'Terminal' | 'Cpu' | 'Shield' | 'Activity' | 'Award' | 'Code' | 'GraduationCap' | 'Globe';
+}
