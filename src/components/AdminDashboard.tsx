@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { 
   X, Save, Trash2, Plus, RefreshCw, Lock, 
   User, Cpu, Code, Award, Database, ShieldAlert, GraduationCap, FileText, Settings, Upload, Share2, Sparkles,
-  Download, ChevronUp, ChevronDown, GripVertical
+  Download, ChevronUp, ChevronDown, GripVertical, Terminal
 } from 'lucide-react';
 import { usePortfolio, Profile, Sections } from '../context/PortfolioContext';
 import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount, AboutPillar } from '../types';
