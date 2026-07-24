@@ -1,0 +1,70 @@
+# Fix Certificate Image Display & Add Enlargeable Hackathon Cards
+
+## Root Cause Analysis
+
+### Issue 1: Certificate Images Not Displaying
+
+From your screenshots, I can see:
+- **Image 3**: The FIRST certificate card (SAP CAP MODEL BACKEND) displays perfectly — it's a **PDF** rendered via `<iframe>`.
+- **Image 4**: When enlarged, the PDF renders perfectly with the browser's built-in PDF viewer.
+- **Image 1 & 2**: All OTHER certificate cards show **broken alt text** (e.g., `GITHUB_FOR_YOUTH`) — their `credentialUrl` is an **image** (not a PDF).
+
+**The actual problem** is that the `credentialUrl` for image-based certificates was **already corrupted and saved to Firestore** by the `sanitizePlainString()` function *before* we fixed the bypass. The regex `on\w+\s*=\s*...` in `sanitizePlainString` strips out sections of base64 data strings that accidentally match patterns like `onAB=...`, corrupting the data permanently in the database.
+
+PDF certificates were NOT corrupted because they go through a separate `FileReader.readAsDataURL()` path that produces `data:application/pdf;base64,...` — and the PDF data is less likely to contain sequences like `on[word]=`.
+
+**Why the fix from yesterday didn't help**: We bypassed `sanitizePlainString` for future saves, but the **already-corrupted data in Firestore** was not repaired. Every time the app loads, it reads the corrupted base64 strings from Firestore and tries to render them — which fails.
+
+**The Fix**:
+1. The user must **re-upload** the certificate images through the Admin Dashboard — since the data in Firestore is permanently corrupted, the only way to restore them is to upload fresh copies.
+2. To prevent this from EVER happening again, I will also bypass sanitization for `imageUrl` on projects (already done for `videoUrl`) and for the `avatarUrl` and `resumeUrl` in the profile save handler — any field that can hold a `data:` URI.
+
+### Issue 2: Hackathon Cards Are Static (Not Enlargeable)
+
+The Project section cards open a rich `ProjectDetailModal` when clicked. The Hackathon cards currently have no such detail modal — they just sit there statically. We need to create a `HackathonDetailModal` component and wire it up through `App.tsx`, just like `ProjectDetailModal`.
+
+---
+
+## Proposed Changes
+
+### Component: Sanitization Bypass (Permanent Prevention)
+
+#### [MODIFY] [AdminDashboard.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/AdminDashboard.tsx)
+- In the `saveProfile` handler (~line 260): bypass `sanitizePlainString` for `avatarUrl` and `resumeUrl` (these hold base64 data URIs from uploaded files).
+- In the `saveProject` handler (~line 345): ensure `imageUrl` continues to be bypassed (already done).
+- All `credentialUrl`, `videoUrl`, `winningCertUrl`, `participationCertUrl` are already bypassed.
+
+---
+
+### Component: Hackathon Detail Modal (New Enlargeable View)
+
+#### [NEW] [HackathonDetailModal.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/HackathonDetailModal.tsx)
+- Create a new detail modal component similar to `ProjectDetailModal` but tailored for hackathon data.
+- Display: title, position/placement, year, description, tags, location.
+- Show certificate thumbnails (winning cert + participation cert) with click-to-enlarge viewer.
+- Include the same premium styling, backdrop blur, and motion animations as `ProjectDetailModal`.
+
+#### [MODIFY] [HackathonsCard.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/HackathonsCard.tsx)
+- Accept an `onHackathonClick` prop callback (similar to `ProjectSlider`'s `onProjectClick`).
+- Wire each hackathon card's `onClick` to invoke the callback with the clicked hackathon.
+
+#### [MODIFY] [App.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/App.tsx)
+- Import `HackathonDetailModal` and add `selectedHackathon` state.
+- Pass `onHackathonClick` to `HackathonsCard`.
+- Render `HackathonDetailModal` inside the existing `<AnimatePresence>` block.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **You will need to re-upload the certificate images** (the non-PDF ones) through the Admin Dashboard after this fix is deployed. The data currently in Firestore for those certificates is permanently corrupted by the old sanitizer — it cannot be repaired programmatically. Once re-uploaded, the images will persist correctly forever.
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` — verify zero compilation errors.
+
+### Manual Verification
+- After deployment, re-upload certificate images via Admin Dashboard and confirm they display correctly in both card thumbnails and enlarged modal views.
+- Click on hackathon cards and verify the new detail modal opens with all hackathon information displayed.

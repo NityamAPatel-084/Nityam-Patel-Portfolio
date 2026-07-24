@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { 
   X, Save, Trash2, Plus, RefreshCw, Lock, 
   User, Cpu, Code, Award, Database, ShieldAlert, GraduationCap, FileText, Settings, Upload, Share2, Sparkles,
-  Download
+  Download, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { usePortfolio, Profile, Sections } from '../context/PortfolioContext';
 import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount } from '../types';
@@ -96,6 +96,34 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   const triggerFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setFeedback({ type, text });
     setTimeout(() => setFeedback(null), 3000);
+  };
+
+  // Reorder helper: swaps an item with its neighbor in the given direction
+  function moveItem<T>(arr: T[], fromIndex: number, direction: 'up' | 'down'): T[] {
+    const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= arr.length) return arr;
+    const newArr = [...arr];
+    [newArr[fromIndex], newArr[toIndex]] = [newArr[toIndex], newArr[fromIndex]];
+    return newArr;
+  }
+
+  const reorderProjects = (index: number, direction: 'up' | 'down') => {
+    portfolio.setProjects(moveItem(portfolio.projects, index, direction));
+  };
+  const reorderSkills = (index: number, direction: 'up' | 'down') => {
+    portfolio.setTechnologies(moveItem(portfolio.technologies, index, direction));
+  };
+  const reorderCerts = (index: number, direction: 'up' | 'down') => {
+    portfolio.setCertificates(moveItem(portfolio.certificates, index, direction));
+  };
+  const reorderHacks = (index: number, direction: 'up' | 'down') => {
+    portfolio.setHackathons(moveItem(portfolio.hackathons, index, direction));
+  };
+  const reorderExps = (index: number, direction: 'up' | 'down') => {
+    portfolio.setExperiences(moveItem(portfolio.experiences, index, direction));
+  };
+  const reorderEdus = (index: number, direction: 'up' | 'down') => {
+    portfolio.setEducations(moveItem(portfolio.educations, index, direction));
   };
 
   // Base64 file converter helper with built-in auto-compression and resizing for images
@@ -1271,9 +1299,31 @@ service cloud.firestore {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {portfolio.projects.map(proj => (
-                        <div key={proj.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex justify-between items-center gap-4">
-                          <div className="space-y-1 min-w-0">
+                      {portfolio.projects.map((proj, index) => (
+                        <div key={proj.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderProjects(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderProjects(index, 'down')}
+                              disabled={index === portfolio.projects.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.projects.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          {/* Card Content */}
+                          <div className="space-y-1 min-w-0 flex-grow">
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-[9px] bg-neutral-950 text-sky-400 border border-neutral-800 px-1.5 py-0.5 rounded uppercase font-medium">{proj.serial}</span>
                               <h5 className="font-sans text-xs font-bold text-white truncate">{proj.title.replace(/_/g, ' ')}</h5>
@@ -1556,15 +1606,37 @@ service cloud.firestore {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {portfolio.technologies.map(tech => (
-                        <div key={tech.name} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex justify-between items-center gap-3">
-                          <div className="space-y-0.5">
+                    <div className="grid grid-cols-1 gap-3">
+                      {portfolio.technologies.map((tech, index) => (
+                        <div key={tech.name} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderSkills(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderSkills(index, 'down')}
+                              disabled={index === portfolio.technologies.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.technologies.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          {/* Card Content */}
+                          <div className="space-y-0.5 flex-grow min-w-0">
                             <span className="text-[9px] text-neutral-500 block uppercase font-semibold">[{tech.category}]</span>
-                            <h5 className="font-sans text-xs font-bold text-white">{tech.name}</h5>
+                            <h5 className="font-sans text-xs font-bold text-white truncate">{tech.name}</h5>
                             <span className="text-[10px] text-emerald-400 font-semibold">{tech.status} • {tech.proficiency}%</span>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 shrink-0">
                             <button 
                               onClick={() => startEditSkill(tech)}
                               className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded"
@@ -1722,14 +1794,36 @@ service cloud.firestore {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {portfolio.certificates.map(cert => (
-                        <div key={cert.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex justify-between items-center gap-4">
-                          <div className="space-y-0.5">
-                            <span className="font-sans text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">{cert.status}</span>
-                            <h5 className="font-sans text-xs font-bold text-white pt-1">{cert.title.replace(/_/g, ' ')}</h5>
-                            <p className="font-sans text-[11px] text-neutral-500">{cert.issuer} • {cert.date}</p>
+                      {portfolio.certificates.map((cert, index) => (
+                        <div key={cert.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderCerts(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderCerts(index, 'down')}
+                              disabled={index === portfolio.certificates.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.certificates.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
                           </div>
-                          <div className="flex gap-2">
+                          {/* Card Content */}
+                          <div className="space-y-0.5 flex-grow min-w-0">
+                            <span className="font-sans text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">{cert.status}</span>
+                            <h5 className="font-sans text-xs font-bold text-white pt-1 truncate">{cert.title.replace(/_/g, ' ')}</h5>
+                            <p className="font-sans text-[11px] text-neutral-500 truncate">{cert.issuer} • {cert.date}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
                             <button onClick={() => startEditCert(cert)} className="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
                             <button onClick={() => deleteCert(cert.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
                           </div>
@@ -1893,9 +1987,31 @@ service cloud.firestore {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {portfolio.hackathons.map(hack => (
-                        <div key={hack.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex justify-between items-center gap-4">
-                          <div className="flex items-center gap-3">
+                      {portfolio.hackathons.map((hack, index) => (
+                        <div key={hack.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderHacks(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderHacks(index, 'down')}
+                              disabled={index === portfolio.hackathons.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.hackathons.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+                          {/* Card Content */}
+                          <div className="flex items-center gap-3 flex-grow min-w-0">
                             {(hack.participationCertUrl || hack.winningCertUrl) && (
                               <div className="flex gap-1.5 shrink-0">
                                 {hack.winningCertUrl && (
@@ -1920,13 +2036,13 @@ service cloud.firestore {
                                 )}
                               </div>
                             )}
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-semibold uppercase tracking-wide">{hack.position}</span>
-                              <h5 className="font-sans text-xs font-bold text-white pt-1">{hack.title.replace(/_/g, ' ')}</h5>
-                              <p className="font-sans text-[11px] text-neutral-500">{hack.location} • {hack.year}</p>
+                            <div className="space-y-0.5 min-w-0 flex-grow">
+                              <span className="text-[10px] text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-semibold uppercase tracking-wide inline-block">{hack.position}</span>
+                              <h5 className="font-sans text-xs font-bold text-white pt-1 truncate">{hack.title.replace(/_/g, ' ')}</h5>
+                              <p className="font-sans text-[11px] text-neutral-500 truncate">{hack.location} • {hack.year}</p>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 shrink-0">
                             <button onClick={() => startEditHack(hack)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded">Edit</button>
                             <button onClick={() => deleteHack(hack.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded"><Trash2 size={11} /></button>
                           </div>
@@ -2127,14 +2243,36 @@ service cloud.firestore {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {portfolio.experiences.map(exp => (
-                        <div key={exp.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex justify-between items-center gap-4">
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-neutral-500 block font-semibold uppercase">[{exp.period}]</span>
-                            <h5 className="font-sans text-xs font-bold text-white">{exp.role.replace(/_/g, ' ')}</h5>
-                            <p className="font-sans text-[11px] text-neutral-400">{exp.company}</p>
+                      {portfolio.experiences.map((exp, index) => (
+                        <div key={exp.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderExps(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderExps(index, 'down')}
+                              disabled={index === portfolio.experiences.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.experiences.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
                           </div>
-                          <div className="flex gap-2">
+                          {/* Card Content */}
+                          <div className="space-y-0.5 flex-grow min-w-0">
+                            <span className="text-[9px] text-neutral-500 block font-semibold uppercase">[{exp.period}]</span>
+                            <h5 className="font-sans text-xs font-bold text-white truncate">{exp.role.replace(/_/g, ' ')}</h5>
+                            <p className="font-sans text-[11px] text-neutral-400 truncate">{exp.company}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
                             <button onClick={() => startEditExp(exp)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-neutral-300 hover:bg-neutral-800 text-[10px] font-semibold rounded transition-all">Edit</button>
                             <button onClick={() => deleteExp(exp.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
                           </div>
@@ -2281,14 +2419,36 @@ service cloud.firestore {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {portfolio.educations.map(edu => (
-                        <div key={edu.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex justify-between items-center gap-4">
-                          <div className="space-y-0.5">
-                            <span className="text-[9px] text-neutral-500 block font-semibold uppercase">[{edu.period}]</span>
-                            <h5 className="font-sans text-xs font-bold text-white">{edu.degree}</h5>
-                            <p className="font-sans text-[11px] text-neutral-400">{edu.institution} • {edu.grade || 'No Grade'}</p>
+                      {portfolio.educations.map((edu, index) => (
+                        <div key={edu.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                          {/* Position Number */}
+                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                            {index + 1}
+                          </span>
+                          {/* Reorder Arrows */}
+                          <div className="flex flex-col gap-0.5 shrink-0">
+                            <button
+                              onClick={() => reorderEdus(index, 'up')}
+                              disabled={index === 0}
+                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => reorderEdus(index, 'down')}
+                              disabled={index === portfolio.educations.length - 1}
+                              className={`p-0.5 rounded transition-all ${index === portfolio.educations.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                            >
+                              <ChevronDown size={14} />
+                            </button>
                           </div>
-                          <div className="flex gap-2">
+                          {/* Card Content */}
+                          <div className="space-y-0.5 flex-grow min-w-0">
+                            <span className="text-[9px] text-neutral-500 block font-semibold uppercase">[{edu.period}]</span>
+                            <h5 className="font-sans text-xs font-bold text-white truncate">{edu.degree}</h5>
+                            <p className="font-sans text-[11px] text-neutral-400 truncate">{edu.institution} • {edu.grade || 'No Grade'}</p>
+                          </div>
+                          <div className="flex gap-2 shrink-0">
                             <button onClick={() => startEditEdu(edu)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
                             <button onClick={() => deleteEdu(edu.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
                           </div>

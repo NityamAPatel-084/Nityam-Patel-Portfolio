@@ -1,0 +1,75 @@
+# Admin Card Reordering Feature
+
+Add up/down arrow buttons and position numbers to every card in all 6 Admin Dashboard sections, giving the admin full control over display order.
+
+## Design Approach
+
+Following the reference image's pattern (numbered items + up ▲ / down ▼ arrow buttons), each card in every section will get:
+
+1. **Position Number** — A bold numbered badge (e.g., `#1`, `#2`, `#3`) on the left side of every card, so the admin immediately sees the display order.
+2. **Up/Down Arrow Buttons** — Two small `ChevronUp` / `ChevronDown` buttons next to each card. Clicking swaps the item with its neighbor above or below. The first item's "Up" button and the last item's "Down" button are disabled (grayed out).
+3. **Instant Persistence** — Every swap immediately updates the portfolio context array, which auto-syncs to Firestore. No separate "Save Order" step needed.
+
+## Proposed Changes
+
+### Component: AdminDashboard
+
+#### [MODIFY] [AdminDashboard.tsx](file:///e:/Portfolio/Nityam-Patel-Portfolio/src/components/AdminDashboard.tsx)
+
+**1. Add `ChevronUp`, `ChevronDown` to Lucide imports** (line 3-7)
+
+**2. Add a reusable `moveItem` helper function** (near line 100)
+```tsx
+function moveItem<T>(arr: T[], fromIndex: number, direction: 'up' | 'down'): T[] {
+  const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+  if (toIndex < 0 || toIndex >= arr.length) return arr;
+  const newArr = [...arr];
+  [newArr[fromIndex], newArr[toIndex]] = [newArr[toIndex], newArr[fromIndex]];
+  return newArr;
+}
+```
+
+**3. Add reorder functions for each section:**
+- `reorderProjects(index, direction)` → calls `portfolio.setProjects(moveItem(...))`
+- `reorderSkills(index, direction)` → calls `portfolio.setTechnologies(moveItem(...))`
+- `reorderCerts(index, direction)` → calls `portfolio.setCertificates(moveItem(...))`
+- `reorderHacks(index, direction)` → calls `portfolio.setHackathons(moveItem(...))`
+- `reorderExps(index, direction)` → calls `portfolio.setExperiences(moveItem(...))`
+- `reorderEdus(index, direction)` → calls `portfolio.setEducations(moveItem(...))`
+
+**4. Update all 6 section card renderings:**
+
+For each `.map()` call, change from `.map(item =>` to `.map((item, index) =>` and add:
+- A numbered position badge `#1`, `#2`, etc. on the left
+- Up/Down arrow buttons between the position badge and the card content
+- Disable up arrow on first item, down arrow on last item
+
+Example card row structure (applies to all 6 sections):
+```
+[#1] [▲] [▼] [Card Content...] [Edit] [Delete]
+```
+
+## Sections Affected
+
+| Section | Array | Line (`.map()`) | Grid Layout |
+|---|---|---|---|
+| Projects | `portfolio.projects` | ~1274 | `grid-cols-1` |
+| Skills | `portfolio.technologies` | ~1560 | `grid-cols-1 sm:grid-cols-2` |
+| Certifications | `portfolio.certificates` | ~1725 | `grid-cols-1` |
+| Hackathons | `portfolio.hackathons` | ~1896 | `grid-cols-1` |
+| Experiences | `portfolio.experiences` | ~2130 | `grid-cols-1` |
+| Education | `portfolio.educations` | ~2284 | `grid-cols-1` |
+
+> [!NOTE]
+> **Skills section** currently uses a 2-column grid (`sm:grid-cols-2`). For the reordering to make visual sense (item 1 is top-left, item 2 is top-right, etc.), I'll change it to a **single-column layout** in the Admin Dashboard only. The public-facing portfolio Skills grid remains unchanged.
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` — verify zero compilation errors.
+
+### Manual Verification
+- Open Admin Dashboard, verify position numbers appear on all cards in all 6 sections.
+- Test up/down arrow buttons — verify cards swap positions correctly.
+- Verify first item's up and last item's down buttons are disabled.
+- Verify the reordered list persists after closing and reopening the Admin Dashboard.
