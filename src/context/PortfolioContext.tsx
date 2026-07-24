@@ -27,11 +27,14 @@ export interface Sections {
   certifications: string;
   education: string;
   connect: string;
+  order?: string[];
 }
 
 export interface PortfolioContextType {
   profile: Profile;
   sections: Sections;
+  sectionOrder: string[];
+  setSectionOrder: (order: string[]) => void;
   projects: Project[];
   technologies: Technology[];
   certificates: Certificate[];
@@ -340,6 +343,28 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const DEFAULT_SECTION_ORDER = [
+    'home',
+    'technologies',
+    'projects',
+    'experience',
+    'hackathons',
+    'certifications',
+    'education',
+    'connect'
+  ];
+
+  const sectionOrder = sections.order || DEFAULT_SECTION_ORDER;
+
+  const setSectionOrder = (newOrder: string[]) => {
+    const updated = { ...sections, order: newOrder };
+    setSectionsState(updated);
+    localStorage.setItem('port_sections', JSON.stringify(updated));
+    if (isFirebaseConfigured) {
+      saveToFirestore('sections', updated);
+    }
+  };
+
   const resetToDefault = () => {
     setProfile(DEFAULT_PROFILE);
     setSections(DEFAULT_SECTIONS);
@@ -358,6 +383,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     <PortfolioContext.Provider value={{
       profile,
       sections,
+      sectionOrder,
+      setSectionOrder,
       projects,
       technologies,
       certificates,

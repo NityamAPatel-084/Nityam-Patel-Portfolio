@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { 
   X, Save, Trash2, Plus, RefreshCw, Lock, 
   User, Cpu, Code, Award, Database, ShieldAlert, GraduationCap, FileText, Settings, Upload, Share2, Sparkles,
-  Download, ChevronUp, ChevronDown
+  Download, ChevronUp, ChevronDown, GripVertical
 } from 'lucide-react';
 import { usePortfolio, Profile, Sections } from '../context/PortfolioContext';
 import { Project, Technology, Certificate, Hackathon, Experience, Education, SocialAccount } from '../types';
@@ -124,6 +124,80 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
   const reorderEdus = (index: number, direction: 'up' | 'down') => {
     portfolio.setEducations(moveItem(portfolio.educations, index, direction));
+  };
+
+  // Drag and Drop States
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [draggedType, setDraggedType] = useState<string | null>(null);
+  const [readyToDragId, setReadyToDragId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number, type: string) => {
+    setDraggedIndex(index);
+    setDraggedType(type);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number, type: string) => {
+    if (draggedType !== type) return;
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number, type: string) => {
+    if (draggedType !== type || draggedIndex === null) return;
+    e.preventDefault();
+
+    if (type === 'sections') {
+      const draggableSectionKeys = portfolio.sectionOrder.filter(k => k !== 'home' && k !== 'connect');
+      const items = [...draggableSectionKeys];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setSectionOrder(['home', ...items, 'connect']);
+      triggerFeedback('Section order updated.');
+    } else if (type === 'projects') {
+      const items = [...portfolio.projects];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setProjects(items);
+    } else if (type === 'skills') {
+      const items = [...portfolio.technologies];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setTechnologies(items);
+    } else if (type === 'certs') {
+      const items = [...portfolio.certificates];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setCertificates(items);
+    } else if (type === 'hacks') {
+      const items = [...portfolio.hackathons];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setHackathons(items);
+    } else if (type === 'exps') {
+      const items = [...portfolio.experiences];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setExperiences(items);
+    } else if (type === 'edus') {
+      const items = [...portfolio.educations];
+      const [draggedItem] = items.splice(draggedIndex, 1);
+      items.splice(index, 0, draggedItem);
+      portfolio.setEducations(items);
+    }
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDraggedType(null);
+    setReadyToDragId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDraggedType(null);
+    setReadyToDragId(null);
   };
 
   // Base64 file converter helper with built-in auto-compression and resizing for images
@@ -367,15 +441,17 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveProject = () => {
-    if (!projectForm.title || !projectForm.description) {
+    const sanitizedTitle = sanitizePlainString(projectForm.title || '');
+    const sanitizedDesc = sanitizePlainString(projectForm.description || '');
+    if (!sanitizedTitle || !sanitizedDesc) {
       triggerFeedback('Title and Summary description are required.', 'error');
       return;
     }
     
     const sanitizedForm: Project = {
       id: projectForm.id || 'proj-' + Date.now(),
-      title: sanitizePlainString(projectForm.title || ''),
-      description: sanitizePlainString(projectForm.description || ''),
+      title: sanitizedTitle,
+      description: sanitizedDesc,
       tags: (projectForm.tags || []).map(t => sanitizePlainString(t)),
       year: sanitizePlainString(projectForm.year || ''),
       status: projectForm.status || 'ACTIVE_STATE',
@@ -420,12 +496,13 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveSkill = () => {
-    if (!techForm.name) {
+    const sanitizedName = sanitizePlainString(techForm.name || '');
+    if (!sanitizedName) {
       triggerFeedback('Technology name is required.', 'error');
       return;
     }
     const sanitizedForm: Technology = {
-      name: sanitizePlainString(techForm.name || ''),
+      name: sanitizedName,
       category: techForm.category || 'Languages',
       proficiency: Number(techForm.proficiency) || 90,
       status: techForm.status || 'MASTERED',
@@ -469,14 +546,16 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveCert = () => {
-    if (!certForm.title || !certForm.issuer) {
+    const sanitizedTitle = sanitizePlainString(certForm.title || '');
+    const sanitizedIssuer = sanitizePlainString(certForm.issuer || '');
+    if (!sanitizedTitle || !sanitizedIssuer) {
       triggerFeedback('Title and issuer fields are required.', 'error');
       return;
     }
     const sanitizedForm: Certificate = {
       id: certForm.id || 'cert-' + Date.now(),
-      title: sanitizePlainString(certForm.title || ''),
-      issuer: sanitizePlainString(certForm.issuer || ''),
+      title: sanitizedTitle,
+      issuer: sanitizedIssuer,
       date: sanitizePlainString(certForm.date || ''),
       credentialId: sanitizePlainString(certForm.credentialId || ''),
       credentialUrl: certForm.credentialUrl || '',
@@ -516,14 +595,16 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveHack = () => {
-    if (!hackForm.title || !hackForm.position) {
+    const sanitizedTitle = sanitizePlainString(hackForm.title || '');
+    const sanitizedPosition = sanitizePlainString(hackForm.position || '');
+    if (!sanitizedTitle || !sanitizedPosition) {
       triggerFeedback('Title and placement result are required.', 'error');
       return;
     }
     const sanitizedForm: Hackathon = {
       id: hackForm.id || 'hack-' + Date.now(),
-      title: sanitizePlainString(hackForm.title || ''),
-      position: sanitizePlainString(hackForm.position || ''),
+      title: sanitizedTitle,
+      position: sanitizedPosition,
       year: sanitizePlainString(hackForm.year || ''),
       description: sanitizePlainString(hackForm.description || ''),
       tags: (hackForm.tags || []).map(t => sanitizePlainString(t)),
@@ -565,14 +646,16 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveExp = () => {
-    if (!expForm.role || !expForm.company) {
+    const sanitizedRole = sanitizePlainString(expForm.role || '');
+    const sanitizedCompany = sanitizePlainString(expForm.company || '');
+    if (!sanitizedRole || !sanitizedCompany) {
       triggerFeedback('Role title and company are required.', 'error');
       return;
     }
     const sanitizedForm: Experience = {
       id: expForm.id || 'exp-' + Date.now(),
-      role: sanitizePlainString(expForm.role || ''),
-      company: sanitizePlainString(expForm.company || ''),
+      role: sanitizedRole,
+      company: sanitizedCompany,
       period: sanitizePlainString(expForm.period || ''),
       description: sanitizePlainString(expForm.description || ''),
       bullets: (expForm.bullets || []).map(b => sanitizePlainString(b)),
@@ -611,14 +694,16 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveEdu = () => {
-    if (!eduForm.degree || !eduForm.institution) {
+    const sanitizedDegree = sanitizePlainString(eduForm.degree || '');
+    const sanitizedInstitution = sanitizePlainString(eduForm.institution || '');
+    if (!sanitizedDegree || !sanitizedInstitution) {
       triggerFeedback('Degree level and institution are required.', 'error');
       return;
     }
     const sanitizedForm: Education = {
       id: eduForm.id || 'edu-' + Date.now(),
-      degree: sanitizePlainString(eduForm.degree || ''),
-      institution: sanitizePlainString(eduForm.institution || ''),
+      degree: sanitizedDegree,
+      institution: sanitizedInstitution,
       period: sanitizePlainString(eduForm.period || ''),
       grade: sanitizePlainString(eduForm.grade || ''),
       details: sanitizePlainString(eduForm.details || '')
@@ -677,6 +762,30 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     }
   };
 
+  const sectionTabMap: Record<string, { id: string; label: string; icon: any }> = {
+    projects: { id: 'projects', label: 'Manage Projects', icon: Cpu },
+    technologies: { id: 'skills', label: 'Manage Skills', icon: Code },
+    certifications: { id: 'certs', label: 'Certifications', icon: Award },
+    hackathons: { id: 'hacks', label: 'Hackathon Placements', icon: Database },
+    experience: { id: 'exps', label: 'Job Experiences', icon: ShieldAlert },
+    education: { id: 'edus', label: 'Academic History', icon: GraduationCap },
+  };
+
+  const draggableSectionKeys = portfolio.sectionOrder.filter(k => k !== 'home' && k !== 'connect');
+
+  const sidebarTabs = [
+    { id: 'profile', label: 'Identity & Layout', icon: User, isDraggable: false },
+    { id: 'socials', label: 'Social Networks', icon: Share2, isDraggable: false },
+    ...draggableSectionKeys.map((key) => {
+      const tab = sectionTabMap[key];
+      return {
+        ...tab,
+        isDraggable: true,
+        sectionKey: key
+      };
+    })
+  ].filter(Boolean);
+
   return (
     <div className="fixed inset-0 z-50 bg-[#07080d]/90 backdrop-blur-xl flex items-center justify-center p-2 sm:p-6 select-none overflow-hidden">
       <motion.div 
@@ -697,31 +806,70 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
 
             {/* Links */}
             <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
-              {[
-                { id: 'profile', label: 'Identity & Layout', icon: User },
-                { id: 'socials', label: 'Social Networks', icon: Share2 },
-                { id: 'projects', label: 'Manage Projects', icon: Cpu },
-                { id: 'skills', label: 'Manage Skills', icon: Code },
-                { id: 'certs', label: 'Certifications', icon: Award },
-                { id: 'hacks', label: 'Hackathon Placements', icon: Database },
-                { id: 'exps', label: 'Job Experiences', icon: ShieldAlert },
-                { id: 'edus', label: 'Academic History', icon: GraduationCap }
-              ].map((item) => {
+              {sidebarTabs.map((item) => {
                 const Icon = item.icon;
                 const isAct = activeTab === item.id;
+                const indexInDraggable = item.isDraggable ? draggableSectionKeys.indexOf(item.sectionKey!) : -1;
+                
+                const isDragged = item.isDraggable && draggedType === 'sections' && draggedIndex === indexInDraggable;
+                const isDragOver = item.isDraggable && draggedType === 'sections' && dragOverIndex === indexInDraggable && draggedIndex !== null && indexInDraggable !== draggedIndex;
+                
+                const dropBorderClass = isDragOver
+                  ? indexInDraggable < draggedIndex
+                    ? 'border-t-2 border-t-purple-500 border-dashed'
+                    : 'border-b-2 border-b-purple-500 border-dashed'
+                  : '';
+
                 return (
-                  <button
+                  <div
                     key={item.id}
-                    onClick={() => { setActiveTab(item.id as any); setEditingId(null); }}
-                    className={`flex items-center gap-2 px-3 py-2 text-[11px] font-medium tracking-wide rounded-lg transition-all text-left whitespace-nowrap shrink-0 w-auto md:w-full ${
-                      isAct 
-                        ? 'bg-sky-500/10 text-sky-400 font-semibold border-l-2 border-sky-400' 
-                        : 'text-neutral-400 hover:text-white hover:bg-neutral-900/40'
-                    }`}
+                    draggable={item.isDraggable && readyToDragId === item.id}
+                    onDragStart={(e) => {
+                      if (item.isDraggable) {
+                        handleDragStart(e, indexInDraggable, 'sections');
+                        setReadyToDragId(null);
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      if (item.isDraggable) {
+                        handleDragOver(e, indexInDraggable, 'sections');
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (item.isDraggable) {
+                        handleDrop(e, indexInDraggable, 'sections');
+                      }
+                    }}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center w-full transition-all duration-200 border rounded-lg ${
+                      isDragged
+                        ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                        : 'border-transparent'
+                    } ${dropBorderClass}`}
                   >
-                    <Icon size={12} className={isAct ? 'text-sky-400' : 'text-neutral-500'} />
-                    <span>{item.label}</span>
-                  </button>
+                    {item.isDraggable && (
+                      <div
+                        onMouseDown={() => setReadyToDragId(item.id)}
+                        onMouseUp={() => setReadyToDragId(null)}
+                        onMouseLeave={() => setReadyToDragId(null)}
+                        className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 shrink-0"
+                        title="Drag to reorder section"
+                      >
+                        <GripVertical size={12} />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setActiveTab(item.id as any); setEditingId(null); }}
+                      className={`flex items-center gap-2 px-3 py-2 text-[11px] font-medium tracking-wide rounded-lg transition-all text-left whitespace-nowrap shrink-0 flex-grow ${
+                        isAct 
+                          ? 'bg-sky-500/10 text-sky-400 font-semibold border-l-2 border-sky-400' 
+                          : 'text-neutral-400 hover:text-white hover:bg-neutral-900/40'
+                      }`}
+                    >
+                      <Icon size={12} className={isAct ? 'text-sky-400' : 'text-neutral-500'} />
+                      <span>{item.label}</span>
+                    </button>
+                  </div>
                 );
               })}
             </nav>
@@ -1300,7 +1448,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.projects.map((proj, index) => (
-                        <div key={proj.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                        <div 
+                          key={proj.id} 
+                          draggable={readyToDragId === proj.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'projects');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'projects')}
+                          onDrop={(e) => handleDrop(e, index, 'projects')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3.5 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'projects'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'projects' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(proj.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}
@@ -1608,7 +1787,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.technologies.map((tech, index) => (
-                        <div key={tech.name} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex items-center gap-3">
+                        <div 
+                          key={tech.name} 
+                          draggable={readyToDragId === tech.name}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'skills');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'skills')}
+                          onDrop={(e) => handleDrop(e, index, 'skills')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'skills'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'skills' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(tech.name)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}
@@ -1795,7 +2005,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.certificates.map((cert, index) => (
-                        <div key={cert.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3 flex items-center gap-3">
+                        <div 
+                          key={cert.id} 
+                          draggable={readyToDragId === cert.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'certs');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'certs')}
+                          onDrop={(e) => handleDrop(e, index, 'certs')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'certs'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'certs' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(cert.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}
@@ -1988,7 +2229,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.hackathons.map((hack, index) => (
-                        <div key={hack.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                        <div 
+                          key={hack.id} 
+                          draggable={readyToDragId === hack.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'hacks');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'hacks')}
+                          onDrop={(e) => handleDrop(e, index, 'hacks')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3.5 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'hacks'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'hacks' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(hack.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}
@@ -2244,7 +2516,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.experiences.map((exp, index) => (
-                        <div key={exp.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                        <div 
+                          key={exp.id} 
+                          draggable={readyToDragId === exp.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'exps');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'exps')}
+                          onDrop={(e) => handleDrop(e, index, 'exps')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3.5 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'exps'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'exps' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(exp.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}
@@ -2420,7 +2723,38 @@ service cloud.firestore {
 
                     <div className="grid grid-cols-1 gap-3">
                       {portfolio.educations.map((edu, index) => (
-                        <div key={edu.id} className="bg-neutral-900/30 border border-neutral-850 rounded-lg p-3.5 flex items-center gap-3">
+                        <div 
+                          key={edu.id} 
+                          draggable={readyToDragId === edu.id}
+                          onDragStart={(e) => {
+                            handleDragStart(e, index, 'edus');
+                            setReadyToDragId(null);
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index, 'edus')}
+                          onDrop={(e) => handleDrop(e, index, 'edus')}
+                          onDragEnd={handleDragEnd}
+                          className={`rounded-lg p-3.5 flex items-center gap-3 transition-all duration-200 border ${
+                            draggedIndex === index && draggedType === 'edus'
+                              ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                              : 'bg-neutral-900/30 border-neutral-850'
+                          } ${
+                            dragOverIndex === index && draggedType === 'edus' && draggedIndex !== null && index !== draggedIndex
+                              ? index < draggedIndex
+                                ? 'border-t-2 border-t-purple-500 border-dashed'
+                                : 'border-b-2 border-b-purple-500 border-dashed'
+                              : ''
+                          }`}
+                        >
+                          {/* Drag Handle */}
+                          <div
+                            onMouseDown={() => setReadyToDragId(edu.id)}
+                            onMouseUp={() => setReadyToDragId(null)}
+                            onMouseLeave={() => setReadyToDragId(null)}
+                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           {/* Position Number */}
                           <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
                             {index + 1}

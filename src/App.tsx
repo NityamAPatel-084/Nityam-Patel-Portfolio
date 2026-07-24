@@ -29,7 +29,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedHackathon, setSelectedHackathon] = useState<Hackathon | null>(null);
 
-  const { showAdmin, setShowAdmin, profile, adminPassword, adminCodeword } = usePortfolio();
+  const { showAdmin, setShowAdmin, profile, adminPassword, adminCodeword, sectionOrder } = usePortfolio();
   const [isDownloadingResume, setIsDownloadingResume] = useState(false);
 
   // States for secure fallback Admin Login Gateway
@@ -272,53 +272,76 @@ export default function App() {
 
         {/* Dynamic content deck stage */}
         <div className="px-8 py-16 flex-grow max-w-6xl w-full mx-auto space-y-32 pb-32">
-          <section id="section-home" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <AboutSection onResumeClick={handleResumeDownload} />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-technologies" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <TechnologiesGrid />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-projects" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <ProjectSlider onProjectClick={(p) => setSelectedProject(p)} />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-experience" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <ExperienceTimeline />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-hackathons" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <HackathonsCard onHackathonClick={(h) => setSelectedHackathon(h)} />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-certifications" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <CertificatesList />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-education" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <EducationSection />
-            </ScrollReveal>
-          </section>
-
-          <section id="section-connect" className="scroll-mt-28">
-            <ScrollReveal direction="up">
-              <ContactConsole />
-            </ScrollReveal>
-          </section>
+          {sectionOrder.map((sectionId) => {
+            switch (sectionId) {
+              case 'home':
+                return (
+                  <section key="home" id="section-home" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <AboutSection onResumeClick={handleResumeDownload} />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'technologies':
+                return (
+                  <section key="technologies" id="section-technologies" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <TechnologiesGrid />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'projects':
+                return (
+                  <section key="projects" id="section-projects" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <ProjectSlider onProjectClick={(p) => setSelectedProject(p)} />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'experience':
+                return (
+                  <section key="experience" id="section-experience" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <ExperienceTimeline />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'hackathons':
+                return (
+                  <section key="hackathons" id="section-hackathons" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <HackathonsCard onHackathonClick={(h) => setSelectedHackathon(h)} />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'certifications':
+                return (
+                  <section key="certifications" id="section-certifications" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <CertificatesList />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'education':
+                return (
+                  <section key="education" id="section-education" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <EducationSection />
+                    </ScrollReveal>
+                  </section>
+                );
+              case 'connect':
+                return (
+                  <section key="connect" id="section-connect" className="scroll-mt-28">
+                    <ScrollReveal direction="up">
+                      <ContactConsole />
+                    </ScrollReveal>
+                  </section>
+                );
+              default:
+                return null;
+            }
+          })}
         </div>
 
         {/* Elegant Bottom Footer */}

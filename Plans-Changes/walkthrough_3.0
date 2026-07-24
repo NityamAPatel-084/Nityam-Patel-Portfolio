@@ -1,0 +1,34 @@
+# Portfolio Enhancements Walkthrough
+
+We have successfully implemented card reordering capabilities across the Admin Dashboard, added a premium Hackathon details modal, integrated modal keyboard navigation, and finalized the database persistence fixes.
+
+## Verified Solutions
+
+### 1. Admin Card Reordering
+We added full manual sorting controls to the following 6 sections of the Admin Control Deck:
+- **Manage Projects**
+- **Technical Skills** (converted from a 2-column layout to single-column in the admin panel for logical visual flow)
+- **Certifications**
+- **Hackathon Placements**
+- **Job Experiences**
+- **Academic History**
+
+**UI Indicators Added:**
+- **Position Numbers:** Each card is pre-pended with a bold index badge (e.g. `#1`, `#2`) to clearly communicate its render sequence.
+- **Directional Shift Arrows:** Up (▲) and Down (▼) buttons allow swapping positions. The top item has its Up arrow disabled, and the bottom item has its Down arrow disabled to prevent out-of-bounds shifts.
+- **Automatic Sync:** Ordering swaps instantly update the local state and write straight to Firestore.
+
+### 2. Hackathon Detail Modal (Enlargeable Cards)
+- Clicking any card in the **Hackathons & Competitions** section now opens a dedicated, premium detail overlay matching the Projects overlay design.
+- Displays full descriptions, placements, dates, locations, tags, and inline document viewer components for certificates.
+
+### 3. Escape Key Navigation
+- Pressing the keyboard `Escape` key now instantly closes any open modal window, including the project modal, hackathon detail modal, and certificate viewer overlay.
+
+### 4. Firestore Database Persistence & Image Repairs
+- Bypassed HTML sanitization filters on binary payloads to prevent file uploads from getting corrupted.
+- Removed strict `referrerPolicy` parameters so image files can load properly on external domains.
+
+## Verification
+- Verified the codebase builds cleanly (`npm run build`).
+- Successfully pushed the updates to the GitHub repository.

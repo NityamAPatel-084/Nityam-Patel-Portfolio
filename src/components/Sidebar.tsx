@@ -21,18 +21,26 @@ export default function Sidebar({
   isOpen,
   onClose,
 }: SidebarProps) {
-  const { profile, sections } = usePortfolio();
+  const { profile, sections, sectionOrder } = usePortfolio();
 
-  const sidebarItems = [
-    { id: 'home', label: sections.home.toUpperCase(), icon: Cpu },
-    { id: 'technologies', label: sections.technologies.toUpperCase(), icon: Terminal },
-    { id: 'projects', label: sections.projects.toUpperCase(), icon: Cpu },
-    { id: 'experience', label: sections.experience.toUpperCase(), icon: ShieldAlert },
-    { id: 'hackathons', label: sections.hackathons.toUpperCase(), icon: Database },
-    { id: 'certifications', label: sections.certifications.toUpperCase(), icon: Award },
-    { id: 'education', label: sections.education.toUpperCase(), icon: GraduationCap },
-    { id: 'connect', label: sections.connect.toUpperCase(), icon: Globe },
-  ];
+  const sectionMetadata: Record<string, { label: string; icon: any }> = {
+    home: { label: sections.home.toUpperCase(), icon: Cpu },
+    technologies: { label: sections.technologies.toUpperCase(), icon: Terminal },
+    projects: { label: sections.projects.toUpperCase(), icon: Cpu },
+    experience: { label: sections.experience.toUpperCase(), icon: ShieldAlert },
+    hackathons: { label: sections.hackathons.toUpperCase(), icon: Database },
+    certifications: { label: sections.certifications.toUpperCase(), icon: Award },
+    education: { label: sections.education.toUpperCase(), icon: GraduationCap },
+    connect: { label: sections.connect.toUpperCase(), icon: Globe },
+  };
+
+  const sidebarItems = sectionOrder
+    .map(id => {
+      const meta = sectionMetadata[id];
+      if (!meta) return null;
+      return { id, label: meta.label, icon: meta.icon };
+    })
+    .filter(Boolean) as { id: string; label: string; icon: any }[];
 
   return (
     <>
