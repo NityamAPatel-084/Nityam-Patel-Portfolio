@@ -261,23 +261,20 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
-        let currentQuality = 0.95;
-        let currentMaxDim = 2048;
         let resultBase64 = '';
-
-        // Iteratively find the sweet spot: maximum dimension and quality to keep the file "just less than 1 MB"
-        while (currentMaxDim >= 512) {
+        
+        const compressImage = (targetDim: number, targetQuality: number): string => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
 
-          if (width > currentMaxDim || height > currentMaxDim) {
+          if (width > targetDim || height > targetDim) {
             if (width > height) {
-              height = Math.round((height * currentMaxDim) / width);
-              width = currentMaxDim;
+              height = Math.round((height * targetDim) / width);
+              width = targetDim;
             } else {
-              width = Math.round((width * currentMaxDim) / height);
-              height = currentMaxDim;
+              width = Math.round((width * targetDim) / height);
+              height = targetDim;
             }
           }
 
@@ -290,24 +287,22 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
-            
-            resultBase64 = canvas.toDataURL('image/jpeg', currentQuality);
-          } else {
-            break;
+            return canvas.toDataURL('image/jpeg', targetQuality);
           }
+          return '';
+        };
 
-          // If the output base64 string is under 850,000 characters (approx. 630 KB), we stop optimizing
-          if (resultBase64.length < 850000) {
-            break;
-          }
+        // Step 1: High quality compression at 1600px max dimensions
+        resultBase64 = compressImage(1600, 0.85);
 
-          // If it is still too big, gradually reduce quality, then try smaller dimension
-          if (currentQuality > 0.7) {
-            currentQuality -= 0.05;
-          } else {
-            currentMaxDim -= 256;
-            currentQuality = 0.92; // reset quality for smaller dimension
-          }
+        // Step 2: Fallback to 1200px max dimensions & 0.75 quality if still over 850k chars
+        if (resultBase64.length >= 850000) {
+          resultBase64 = compressImage(1200, 0.75);
+        }
+
+        // Step 3: Fallback to 800px max dimensions & 0.70 quality if still over 850k chars
+        if (resultBase64.length >= 850000) {
+          resultBase64 = compressImage(800, 0.70);
         }
 
         if (resultBase64) {
@@ -453,38 +448,43 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveProject = () => {
-    const sanitizedTitle = sanitizePlainString(projectForm.title || '');
-    const sanitizedDesc = sanitizePlainString(projectForm.description || '');
-    if (!sanitizedTitle || !sanitizedDesc) {
-      triggerFeedback('Title and Summary description are required.', 'error');
-      return;
-    }
-    
-    const sanitizedForm: Project = {
-      id: projectForm.id || 'proj-' + Date.now(),
-      title: sanitizedTitle,
-      description: sanitizedDesc,
-      tags: (projectForm.tags || []).map(t => sanitizePlainString(t)),
-      year: sanitizePlainString(projectForm.year || ''),
-      status: projectForm.status || 'ACTIVE_STATE',
-      category: projectForm.category || 'websites',
-      serial: sanitizePlainString(projectForm.serial || ''),
-      client: sanitizePlainString(projectForm.client || ''),
-      link: sanitizePlainString(projectForm.link || ''),
-      imageUrl: projectForm.imageUrl || '',
-      videoUrl: projectForm.videoUrl || '',
-      details: sanitizeHtmlContent(projectForm.details || '')
-    };
+    try {
+      const sanitizedTitle = sanitizePlainString(projectForm.title || '');
+      const sanitizedDesc = sanitizePlainString(projectForm.description || '');
+      if (!sanitizedTitle || !sanitizedDesc) {
+        triggerFeedback('Title and Summary description are required.', 'error');
+        return;
+      }
+      
+      const sanitizedForm: Project = {
+        id: projectForm.id || 'proj-' + Date.now(),
+        title: sanitizedTitle,
+        description: sanitizedDesc,
+        tags: (projectForm.tags || []).map(t => sanitizePlainString(t)),
+        year: sanitizePlainString(projectForm.year || ''),
+        status: projectForm.status || 'ACTIVE_STATE',
+        category: projectForm.category || 'websites',
+        serial: sanitizePlainString(projectForm.serial || ''),
+        client: sanitizePlainString(projectForm.client || ''),
+        link: sanitizePlainString(projectForm.link || ''),
+        imageUrl: projectForm.imageUrl || '',
+        videoUrl: projectForm.videoUrl || '',
+        details: sanitizeHtmlContent(projectForm.details || '')
+      };
 
-    let updated: Project[];
-    if (editingId === 'new') {
-      updated = [...portfolio.projects, sanitizedForm];
-    } else {
-      updated = portfolio.projects.map(p => p.id === editingId ? { ...p, ...sanitizedForm } as Project : p);
+      let updated: Project[];
+      if (editingId === 'new') {
+        updated = [...portfolio.projects, sanitizedForm];
+      } else {
+        updated = portfolio.projects.map(p => p.id === editingId ? { ...p, ...sanitizedForm } as Project : p);
+      }
+      portfolio.setProjects(updated);
+      setEditingId(null);
+      triggerFeedback('Project record committed successfully.');
+    } catch (err: any) {
+      console.error('Error saving project:', err);
+      triggerFeedback(`Failed to save project: ${err.message || err}`, 'error');
     }
-    portfolio.setProjects(updated);
-    setEditingId(null);
-    triggerFeedback('Project record committed successfully.');
   };
 
   const deleteProject = (id: string) => {
@@ -508,31 +508,36 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveSkill = () => {
-    const sanitizedName = sanitizePlainString(techForm.name || '');
-    if (!sanitizedName) {
-      triggerFeedback('Technology name is required.', 'error');
-      return;
-    }
-    const sanitizedForm: Technology = {
-      name: sanitizedName,
-      category: techForm.category || 'Languages',
-      proficiency: Number(techForm.proficiency) || 90,
-      status: techForm.status || 'MASTERED',
-      metric: sanitizePlainString(techForm.metric || '')
-    };
-    let updated: Technology[];
-    if (editingId === 'new_skill') {
-      if (portfolio.technologies.some(t => t.name === sanitizedForm.name)) {
-        triggerFeedback('A skill with this name already exists.', 'error');
+    try {
+      const sanitizedName = sanitizePlainString(techForm.name || '');
+      if (!sanitizedName) {
+        triggerFeedback('Technology name is required.', 'error');
         return;
       }
-      updated = [...portfolio.technologies, sanitizedForm];
-    } else {
-      updated = portfolio.technologies.map(t => t.name === editingId ? sanitizedForm : t);
+      const sanitizedForm: Technology = {
+        name: sanitizedName,
+        category: techForm.category || 'Languages',
+        proficiency: Number(techForm.proficiency) || 90,
+        status: techForm.status || 'MASTERED',
+        metric: sanitizePlainString(techForm.metric || '')
+      };
+      let updated: Technology[];
+      if (editingId === 'new_skill') {
+        if (portfolio.technologies.some(t => t.name === sanitizedForm.name)) {
+          triggerFeedback('A skill with this name already exists.', 'error');
+          return;
+        }
+        updated = [...portfolio.technologies, sanitizedForm];
+      } else {
+        updated = portfolio.technologies.map(t => t.name === editingId ? sanitizedForm : t);
+      }
+      portfolio.setTechnologies(updated);
+      setEditingId(null);
+      triggerFeedback('Skill database record committed.');
+    } catch (err: any) {
+      console.error('Error saving skill:', err);
+      triggerFeedback(`Failed to save skill: ${err.message || err}`, 'error');
     }
-    portfolio.setTechnologies(updated);
-    setEditingId(null);
-    triggerFeedback('Skill database record committed.');
   };
 
   const deleteSkill = (name: string) => {
@@ -558,30 +563,35 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveCert = () => {
-    const sanitizedTitle = sanitizePlainString(certForm.title || '');
-    const sanitizedIssuer = sanitizePlainString(certForm.issuer || '');
-    if (!sanitizedTitle || !sanitizedIssuer) {
-      triggerFeedback('Title and issuer fields are required.', 'error');
-      return;
+    try {
+      const sanitizedTitle = sanitizePlainString(certForm.title || '');
+      const sanitizedIssuer = sanitizePlainString(certForm.issuer || '');
+      if (!sanitizedTitle || !sanitizedIssuer) {
+        triggerFeedback('Title and issuer fields are required.', 'error');
+        return;
+      }
+      const sanitizedForm: Certificate = {
+        id: certForm.id || 'cert-' + Date.now(),
+        title: sanitizedTitle,
+        issuer: sanitizedIssuer,
+        date: sanitizePlainString(certForm.date || ''),
+        credentialId: sanitizePlainString(certForm.credentialId || ''),
+        credentialUrl: certForm.credentialUrl || '',
+        status: certForm.status || 'VERIFIED'
+      };
+      let updated: Certificate[];
+      if (editingId === 'new_cert') {
+        updated = [...portfolio.certificates, sanitizedForm];
+      } else {
+        updated = portfolio.certificates.map(c => c.id === editingId ? sanitizedForm : c);
+      }
+      portfolio.setCertificates(updated);
+      setEditingId(null);
+      triggerFeedback('Certificate verification updated.');
+    } catch (err: any) {
+      console.error('Error saving certificate:', err);
+      triggerFeedback(`Failed to save certificate: ${err.message || err}`, 'error');
     }
-    const sanitizedForm: Certificate = {
-      id: certForm.id || 'cert-' + Date.now(),
-      title: sanitizedTitle,
-      issuer: sanitizedIssuer,
-      date: sanitizePlainString(certForm.date || ''),
-      credentialId: sanitizePlainString(certForm.credentialId || ''),
-      credentialUrl: certForm.credentialUrl || '',
-      status: certForm.status || 'VERIFIED'
-    };
-    let updated: Certificate[];
-    if (editingId === 'new_cert') {
-      updated = [...portfolio.certificates, sanitizedForm];
-    } else {
-      updated = portfolio.certificates.map(c => c.id === editingId ? sanitizedForm : c);
-    }
-    portfolio.setCertificates(updated);
-    setEditingId(null);
-    triggerFeedback('Certificate verification updated.');
   };
 
   const deleteCert = (id: string) => {
@@ -607,32 +617,37 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveHack = () => {
-    const sanitizedTitle = sanitizePlainString(hackForm.title || '');
-    const sanitizedPosition = sanitizePlainString(hackForm.position || '');
-    if (!sanitizedTitle || !sanitizedPosition) {
-      triggerFeedback('Title and placement result are required.', 'error');
-      return;
+    try {
+      const sanitizedTitle = sanitizePlainString(hackForm.title || '');
+      const sanitizedPosition = sanitizePlainString(hackForm.position || '');
+      if (!sanitizedTitle || !sanitizedPosition) {
+        triggerFeedback('Title and placement result are required.', 'error');
+        return;
+      }
+      const sanitizedForm: Hackathon = {
+        id: hackForm.id || 'hack-' + Date.now(),
+        title: sanitizedTitle,
+        position: sanitizedPosition,
+        year: sanitizePlainString(hackForm.year || ''),
+        description: sanitizePlainString(hackForm.description || ''),
+        tags: (hackForm.tags || []).map(t => sanitizePlainString(t)),
+        location: sanitizePlainString(hackForm.location || ''),
+        participationCertUrl: hackForm.participationCertUrl || '',
+        winningCertUrl: hackForm.winningCertUrl || ''
+      };
+      let updated: Hackathon[];
+      if (editingId === 'new_hack') {
+        updated = [...portfolio.hackathons, sanitizedForm];
+      } else {
+        updated = portfolio.hackathons.map(h => h.id === editingId ? sanitizedForm : h);
+      }
+      portfolio.setHackathons(updated);
+      setEditingId(null);
+      triggerFeedback('Hackathon placement log updated.');
+    } catch (err: any) {
+      console.error('Error saving hackathon:', err);
+      triggerFeedback(`Failed to save hackathon: ${err.message || err}`, 'error');
     }
-    const sanitizedForm: Hackathon = {
-      id: hackForm.id || 'hack-' + Date.now(),
-      title: sanitizedTitle,
-      position: sanitizedPosition,
-      year: sanitizePlainString(hackForm.year || ''),
-      description: sanitizePlainString(hackForm.description || ''),
-      tags: (hackForm.tags || []).map(t => sanitizePlainString(t)),
-      location: sanitizePlainString(hackForm.location || ''),
-      participationCertUrl: hackForm.participationCertUrl || '',
-      winningCertUrl: hackForm.winningCertUrl || ''
-    };
-    let updated: Hackathon[];
-    if (editingId === 'new_hack') {
-      updated = [...portfolio.hackathons, sanitizedForm];
-    } else {
-      updated = portfolio.hackathons.map(h => h.id === editingId ? sanitizedForm : h);
-    }
-    portfolio.setHackathons(updated);
-    setEditingId(null);
-    triggerFeedback('Hackathon placement log updated.');
   };
 
   const deleteHack = (id: string) => {
@@ -658,30 +673,35 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveExp = () => {
-    const sanitizedRole = sanitizePlainString(expForm.role || '');
-    const sanitizedCompany = sanitizePlainString(expForm.company || '');
-    if (!sanitizedRole || !sanitizedCompany) {
-      triggerFeedback('Role title and company are required.', 'error');
-      return;
+    try {
+      const sanitizedRole = sanitizePlainString(expForm.role || '');
+      const sanitizedCompany = sanitizePlainString(expForm.company || '');
+      if (!sanitizedRole || !sanitizedCompany) {
+        triggerFeedback('Role title and company are required.', 'error');
+        return;
+      }
+      const sanitizedForm: Experience = {
+        id: expForm.id || 'exp-' + Date.now(),
+        role: sanitizedRole,
+        company: sanitizedCompany,
+        period: sanitizePlainString(expForm.period || ''),
+        description: sanitizePlainString(expForm.description || ''),
+        bullets: (expForm.bullets || []).map(b => sanitizePlainString(b)),
+        status: expForm.status || 'ACTIVE_UPLINK'
+      };
+      let updated: Experience[];
+      if (editingId === 'new_exp') {
+        updated = [...portfolio.experiences, sanitizedForm];
+      } else {
+        updated = portfolio.experiences.map(e => e.id === editingId ? sanitizedForm : e);
+      }
+      portfolio.setExperiences(updated);
+      setEditingId(null);
+      triggerFeedback('Experience node logged.');
+    } catch (err: any) {
+      console.error('Error saving experience:', err);
+      triggerFeedback(`Failed to save experience: ${err.message || err}`, 'error');
     }
-    const sanitizedForm: Experience = {
-      id: expForm.id || 'exp-' + Date.now(),
-      role: sanitizedRole,
-      company: sanitizedCompany,
-      period: sanitizePlainString(expForm.period || ''),
-      description: sanitizePlainString(expForm.description || ''),
-      bullets: (expForm.bullets || []).map(b => sanitizePlainString(b)),
-      status: expForm.status || 'ACTIVE_UPLINK'
-    };
-    let updated: Experience[];
-    if (editingId === 'new_exp') {
-      updated = [...portfolio.experiences, sanitizedForm];
-    } else {
-      updated = portfolio.experiences.map(e => e.id === editingId ? sanitizedForm : e);
-    }
-    portfolio.setExperiences(updated);
-    setEditingId(null);
-    triggerFeedback('Experience node logged.');
   };
 
   const deleteExp = (id: string) => {
@@ -706,29 +726,34 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const saveEdu = () => {
-    const sanitizedDegree = sanitizePlainString(eduForm.degree || '');
-    const sanitizedInstitution = sanitizePlainString(eduForm.institution || '');
-    if (!sanitizedDegree || !sanitizedInstitution) {
-      triggerFeedback('Degree level and institution are required.', 'error');
-      return;
+    try {
+       const sanitizedDegree = sanitizePlainString(eduForm.degree || '');
+       const sanitizedInstitution = sanitizePlainString(eduForm.institution || '');
+       if (!sanitizedDegree || !sanitizedInstitution) {
+         triggerFeedback('Degree level and institution are required.', 'error');
+         return;
+       }
+       const sanitizedForm: Education = {
+         id: eduForm.id || 'edu-' + Date.now(),
+         degree: sanitizedDegree,
+         institution: sanitizedInstitution,
+         period: sanitizePlainString(eduForm.period || ''),
+         grade: sanitizePlainString(eduForm.grade || ''),
+         details: sanitizePlainString(eduForm.details || '')
+       };
+       let updated: Education[];
+       if (editingId === 'new_edu') {
+         updated = [...portfolio.educations, sanitizedForm];
+       } else {
+         updated = portfolio.educations.map(e => e.id === editingId ? sanitizedForm : e);
+       }
+       portfolio.setEducations(updated);
+       setEditingId(null);
+       triggerFeedback('Education levels and details synchronized.');
+    } catch (err: any) {
+      console.error('Error saving education:', err);
+      triggerFeedback(`Failed to save academic registry: ${err.message || err}`, 'error');
     }
-    const sanitizedForm: Education = {
-      id: eduForm.id || 'edu-' + Date.now(),
-      degree: sanitizedDegree,
-      institution: sanitizedInstitution,
-      period: sanitizePlainString(eduForm.period || ''),
-      grade: sanitizePlainString(eduForm.grade || ''),
-      details: sanitizePlainString(eduForm.details || '')
-    };
-    let updated: Education[];
-    if (editingId === 'new_edu') {
-      updated = [...portfolio.educations, sanitizedForm];
-    } else {
-      updated = portfolio.educations.map(e => e.id === editingId ? sanitizedForm : e);
-    }
-    portfolio.setEducations(updated);
-    setEditingId(null);
-    triggerFeedback('Education levels and details synchronized.');
   };
 
   const deleteEdu = (id: string) => {
@@ -796,33 +821,38 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
   };
 
   const savePillar = () => {
-    const category = sanitizePlainString(pillarForm.category || '');
-    const title = sanitizePlainString(pillarForm.title || '');
-    const description = sanitizePlainString(pillarForm.description || '');
-    const icon = pillarForm.icon || 'Terminal';
+    try {
+      const category = sanitizePlainString(pillarForm.category || '');
+      const title = sanitizePlainString(pillarForm.title || '');
+      const description = sanitizePlainString(pillarForm.description || '');
+      const icon = pillarForm.icon || 'Terminal';
 
-    if (!category || !title || !description) {
-      triggerFeedback('All fields (Category, Title, and Description) are required.', 'error');
-      return;
+      if (!category || !title || !description) {
+        triggerFeedback('All fields (Category, Title, and Description) are required.', 'error');
+        return;
+      }
+
+      const newPillar: AboutPillar = {
+        id: editingId === 'new_pillar' ? 'pillar-' + Date.now() : editingId!,
+        category,
+        title,
+        description,
+        icon: icon as any
+      };
+
+      let updated: AboutPillar[];
+      if (editingId === 'new_pillar') {
+        updated = [...(portfolio.pillars || []), newPillar];
+      } else {
+        updated = (portfolio.pillars || []).map(p => p.id === editingId ? newPillar : p);
+      }
+      portfolio.setPillars(updated);
+      setEditingId(null);
+      triggerFeedback('Professional pillar saved successfully.');
+    } catch (err: any) {
+      console.error('Error saving pillar:', err);
+      triggerFeedback(`Failed to save pillar: ${err.message || err}`, 'error');
     }
-
-    const newPillar: AboutPillar = {
-      id: editingId === 'new_pillar' ? 'pillar-' + Date.now() : editingId!,
-      category,
-      title,
-      description,
-      icon: icon as any
-    };
-
-    let updated: AboutPillar[];
-    if (editingId === 'new_pillar') {
-      updated = [...(portfolio.pillars || []), newPillar];
-    } else {
-      updated = (portfolio.pillars || []).map(p => p.id === editingId ? newPillar : p);
-    }
-    portfolio.setPillars(updated);
-    setEditingId(null);
-    triggerFeedback('Professional pillar saved successfully.');
   };
 
   const deletePillar = (id: string) => {
@@ -912,9 +942,9 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                       }
                     }}
                     onDragEnd={handleDragEnd}
-                    className={`flex items-center w-full transition-all duration-200 border rounded-lg ${
+                    className={`flex items-center w-full transition-all duration-300 ease-out border rounded-lg ${
                       isDragged
-                        ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.01] opacity-70 cursor-grabbing bg-neutral-900/50'
+                        ? 'border-sky-500 ring-2 ring-sky-500/20 scale-[1.02] opacity-70 cursor-grabbing bg-neutral-900/50 shadow-lg shadow-sky-500/5'
                         : 'border-transparent'
                     } ${dropBorderClass}`}
                   >
@@ -923,10 +953,10 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                         onMouseDown={() => setReadyToDragId(item.id)}
                         onMouseUp={() => setReadyToDragId(null)}
                         onMouseLeave={() => setReadyToDragId(null)}
-                        className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 shrink-0"
+                        className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 hover:bg-neutral-800/40 p-2 rounded-lg transition-all duration-300 shrink-0"
                         title="Drag to reorder section"
                       >
-                        <GripVertical size={12} />
+                        <GripVertical size={18} />
                       </div>
                     )}
                     <button
@@ -1509,30 +1539,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(pillar.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderPillars(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderPillars(index, 'down')}
                               disabled={index === (portfolio.pillars || []).length - 1}
-                              className={`p-0.5 rounded transition-all ${index === (portfolio.pillars || []).length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === (portfolio.pillars || []).length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -1544,8 +1574,8 @@ service cloud.firestore {
                             <p className="text-neutral-400 text-[11px] font-sans truncate">{pillar.description}</p>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button onClick={() => startEditPillar(pillar)} className="px-2.5 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
-                            <button onClick={() => deletePillar(pillar.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
+                            <button onClick={() => startEditPillar(pillar)} className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95">Edit</button>
+                            <button onClick={() => deletePillar(pillar.id)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -1711,30 +1741,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(proj.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderProjects(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderProjects(index, 'down')}
                               disabled={index === portfolio.projects.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.projects.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.projects.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -1748,15 +1778,15 @@ service cloud.firestore {
                           <div className="flex gap-2 shrink-0">
                             <button 
                               onClick={() => startEditProject(proj)}
-                              className="px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold rounded transition-all text-[10px]"
+                              className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95"
                             >
                               Edit
                             </button>
                             <button 
                               onClick={() => deleteProject(proj.id)}
-                              className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/25 text-rose-400 font-semibold rounded transition-all text-[10px]"
+                              className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
@@ -2050,30 +2080,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(tech.name)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderSkills(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderSkills(index, 'down')}
                               disabled={index === portfolio.technologies.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.technologies.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.technologies.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -2082,18 +2112,18 @@ service cloud.firestore {
                             <h5 className="font-sans text-xs font-bold text-white truncate">{tech.name}</h5>
                             <span className="text-[10px] text-emerald-400 font-semibold">{tech.status} • {tech.proficiency}%</span>
                           </div>
-                          <div className="flex gap-1 shrink-0">
+                          <div className="flex gap-2 shrink-0">
                             <button 
                               onClick={() => startEditSkill(tech)}
-                              className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded"
+                              className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95"
                             >
                               Edit
                             </button>
                             <button 
                               onClick={() => deleteSkill(tech.name)}
-                              className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded"
+                              className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"
                             >
-                              <Trash2 size={11} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
@@ -2268,30 +2298,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(cert.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderCerts(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderCerts(index, 'down')}
                               disabled={index === portfolio.certificates.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.certificates.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.certificates.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -2301,8 +2331,8 @@ service cloud.firestore {
                             <p className="font-sans text-[11px] text-neutral-500 truncate">{cert.issuer} • {cert.date}</p>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button onClick={() => startEditCert(cert)} className="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
-                            <button onClick={() => deleteCert(cert.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
+                            <button onClick={() => startEditCert(cert)} className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95">Edit</button>
+                            <button onClick={() => deleteCert(cert.id)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -2386,7 +2416,7 @@ service cloud.firestore {
                               Upload
                               <input 
                                 type="file" 
-                                accept=".pdf,application/pdf,image/*"
+                                accept=".pdf,.png,.jpeg,.jpg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                                 onChange={(e) => handleFileChange(e, (base64) => setCertForm({ ...certForm, credentialUrl: base64 }))}
                                 className="hidden"
                               />
@@ -2492,30 +2522,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(hack.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderHacks(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderHacks(index, 'down')}
                               disabled={index === portfolio.hackathons.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.hackathons.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.hackathons.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -2551,8 +2581,8 @@ service cloud.firestore {
                             </div>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button onClick={() => startEditHack(hack)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded">Edit</button>
-                            <button onClick={() => deleteHack(hack.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded"><Trash2 size={11} /></button>
+                            <button onClick={() => startEditHack(hack)} className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-850 text-neutral-300 text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95">Edit</button>
+                            <button onClick={() => deleteHack(hack.id)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -2649,7 +2679,7 @@ service cloud.firestore {
                               Upload
                               <input 
                                 type="file" 
-                                accept=".pdf,application/pdf,image/*"
+                                accept=".pdf,.png,.jpeg,.jpg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                                 onChange={(e) => handleFileChange(e, (base64) => setHackForm({ ...hackForm, winningCertUrl: base64 }))}
                                 className="hidden"
                               />
@@ -2673,7 +2703,7 @@ service cloud.firestore {
                               Upload
                               <input 
                                 type="file" 
-                                accept=".pdf,application/pdf,image/*"
+                                accept=".pdf,.png,.jpeg,.jpg,.webp,application/pdf,image/png,image/jpeg,image/webp"
                                 onChange={(e) => handleFileChange(e, (base64) => setHackForm({ ...hackForm, participationCertUrl: base64 }))}
                                 className="hidden"
                               />
@@ -2779,30 +2809,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(exp.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderExps(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderExps(index, 'down')}
                               disabled={index === portfolio.experiences.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.experiences.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.experiences.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -2812,8 +2842,8 @@ service cloud.firestore {
                             <p className="font-sans text-[11px] text-neutral-400 truncate">{exp.company}</p>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button onClick={() => startEditExp(exp)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-neutral-300 hover:bg-neutral-800 text-[10px] font-semibold rounded transition-all">Edit</button>
-                            <button onClick={() => deleteExp(exp.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
+                            <button onClick={() => startEditExp(exp)} className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-850 hover:text-white text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95">Edit</button>
+                            <button onClick={() => deleteExp(exp.id)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -2986,30 +3016,30 @@ service cloud.firestore {
                             onMouseDown={() => setReadyToDragId(edu.id)}
                             onMouseUp={() => setReadyToDragId(null)}
                             onMouseLeave={() => setReadyToDragId(null)}
-                            className="cursor-grab active:cursor-grabbing text-neutral-600 hover:text-sky-400 p-1 rounded transition-colors shrink-0"
+                            className="cursor-grab active:cursor-grabbing text-neutral-500 hover:text-sky-400 p-1.5 hover:bg-neutral-800/40 rounded-lg transition-colors shrink-0"
                             title="Drag to reorder"
                           >
-                            <GripVertical size={14} />
+                            <GripVertical size={20} />
                           </div>
                           {/* Position Number */}
-                          <span className="font-mono text-[11px] font-bold text-neutral-500 bg-neutral-950 border border-neutral-800 w-7 h-7 flex items-center justify-center rounded shrink-0">
+                          <span className="font-mono text-xs font-bold text-neutral-400 bg-neutral-950 border border-neutral-850 w-9 h-9 flex items-center justify-center rounded-lg shrink-0 shadow-inner">
                             {index + 1}
                           </span>
                           {/* Reorder Arrows */}
-                          <div className="flex flex-col gap-0.5 shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             <button
                               onClick={() => reorderEdus(index, 'up')}
                               disabled={index === 0}
-                              className={`p-0.5 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === 0 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronUp size={14} />
+                              <ChevronUp size={20} />
                             </button>
                             <button
                               onClick={() => reorderEdus(index, 'down')}
                               disabled={index === portfolio.educations.length - 1}
-                              className={`p-0.5 rounded transition-all ${index === portfolio.educations.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
+                              className={`p-1 rounded transition-all ${index === portfolio.educations.length - 1 ? 'text-neutral-700 cursor-not-allowed' : 'text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer'}`}
                             >
-                              <ChevronDown size={14} />
+                              <ChevronDown size={20} />
                             </button>
                           </div>
                           {/* Card Content */}
@@ -3019,8 +3049,8 @@ service cloud.firestore {
                             <p className="font-sans text-[11px] text-neutral-400 truncate">{edu.institution} • {edu.grade || 'No Grade'}</p>
                           </div>
                           <div className="flex gap-2 shrink-0">
-                            <button onClick={() => startEditEdu(edu)} className="px-2 py-1 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 text-[10px] font-semibold rounded transition-all">Edit</button>
-                            <button onClick={() => deleteEdu(edu.id)} className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 text-rose-400 text-[10px] rounded transition-all"><Trash2 size={11} /></button>
+                            <button onClick={() => startEditEdu(edu)} className="px-3.5 py-1.5 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 hover:border-neutral-700 hover:text-white text-xs font-bold rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95">Edit</button>
+                            <button onClick={() => deleteEdu(edu.id)} className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/15 hover:border-rose-500/40 border border-rose-500/20 text-rose-400 rounded-lg transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 flex items-center justify-center"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
