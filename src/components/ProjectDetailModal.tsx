@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Project } from '../types';
-import { X, ExternalLink, Github, Terminal, Cpu, Play, Award, CheckCircle } from 'lucide-react';
+import { X, ExternalLink, Github, Terminal, Cpu, Play, Award, CheckCircle, FileText, Download } from 'lucide-react';
 import { useResolvedUrl } from '../hooks/useResolvedUrl';
 import { ProjectThumbnail } from './ProjectSlider';
 
@@ -15,6 +15,11 @@ function ProjectDetailMedia({ project }: { project: any }) {
   const videoUrl = project.videoUrl; // PDF report
   const resolvedImgUrl = useResolvedUrl(imageUrl);
   const resolvedPdfUrl = useResolvedUrl(videoUrl);
+  const [isImageBroken, setIsImageBroken] = useState(false);
+
+  useEffect(() => {
+    setIsImageBroken(false);
+  }, [imageUrl]);
 
   const isImgPdf = imageUrl ? (imageUrl.startsWith('data:application/pdf') || 
                   imageUrl.endsWith('.pdf') || 
@@ -38,11 +43,35 @@ function ProjectDetailMedia({ project }: { project: any }) {
   }
 
   if (hasImage) {
+    if (isImageBroken) {
+      return (
+        <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden flex flex-col items-center justify-center p-6 relative gap-4">
+          <div className="flex flex-col items-center text-center gap-2">
+            <FileText size={40} className="text-neutral-500 animate-pulse" />
+            <p className="text-xs text-neutral-400 font-semibold font-sans">
+              This preview could not be displayed.
+            </p>
+          </div>
+          <button 
+            onClick={() => window.open(resolvedImgUrl, '_blank')}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download size={12} />
+            <span>View File</span>
+          </button>
+          <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">
+            IMAGE // UPLINK // FALLBACK
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden flex items-center justify-center p-2 relative">
         <img 
           src={resolvedImgUrl} 
           alt={project.title} 
+          onError={() => setIsImageBroken(true)}
           className="max-w-full max-h-full object-contain rounded" 
         />
         <div className="absolute bottom-3 left-3 font-mono text-[9px] text-sky-400 bg-black/75 px-2 py-0.5 border border-sky-800/40 rounded">

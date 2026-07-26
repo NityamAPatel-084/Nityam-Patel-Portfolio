@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Hackathon } from '../types';
-import { X, Trophy, Award, MapPin, Tag, Play, CheckCircle, Download } from 'lucide-react';
+import { X, Trophy, Award, MapPin, Tag, Play, CheckCircle, Download, FileText } from 'lucide-react';
 import { useResolvedUrl } from '../hooks/useResolvedUrl';
 
 interface HackathonDetailModalProps {
@@ -14,6 +14,11 @@ function HackathonDetailMedia({ hackathon }: { hackathon: Hackathon }) {
   const partUrl = hackathon.participationCertUrl;
   const certUrl = winUrl || partUrl;
   const resolvedUrl = useResolvedUrl(certUrl);
+  const [isImageBroken, setIsImageBroken] = useState(false);
+
+  useEffect(() => {
+    setIsImageBroken(false);
+  }, [certUrl]);
 
   if (resolvedUrl) {
     const isPdf = certUrl ? (
@@ -33,12 +38,34 @@ function HackathonDetailMedia({ hackathon }: { hackathon: Hackathon }) {
           />
         </div>
       );
+    } else if (isImageBroken) {
+      return (
+        <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden flex flex-col items-center justify-center p-6 relative gap-4">
+          <div className="flex flex-col items-center text-center gap-2">
+            <FileText size={40} className="text-neutral-500 animate-pulse" />
+            <p className="text-xs text-neutral-400 font-semibold font-sans">
+              This preview could not be displayed.
+            </p>
+          </div>
+          <button 
+            onClick={() => window.open(resolvedUrl, '_blank')}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download size={12} />
+            <span>View File</span>
+          </button>
+          <div className="absolute bottom-3 left-3 font-mono text-[9px] text-indigo-400 bg-black/75 px-2 py-0.5 border border-indigo-800/40 rounded">
+            CERTIFICATE // MOUNTED // FALLBACK
+          </div>
+        </div>
+      );
     } else {
       return (
         <div className="w-full h-[320px] bg-[#090b11] border border-neutral-800 rounded-lg overflow-hidden flex items-center justify-center p-2 relative">
           <img 
             src={resolvedUrl} 
             alt={hackathon.title} 
+            onError={() => setIsImageBroken(true)}
             className="max-w-full max-h-full object-contain rounded" 
           />
           <div className="absolute bottom-3 left-3 font-mono text-[9px] text-indigo-400 bg-black/75 px-2 py-0.5 border border-indigo-800/40 rounded">
@@ -66,6 +93,7 @@ function CertificateViewer({ url, title, onClose }: { url: string; title: string
   const isPdf = url.startsWith('data:application/pdf') || 
                 url.endsWith('.pdf') || 
                 (resolvedUrl.startsWith('blob:') && url.includes('application/pdf'));
+  const [isImageBroken, setIsImageBroken] = useState(false);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -102,9 +130,24 @@ function CertificateViewer({ url, title, onClose }: { url: string; title: string
               style={{ backgroundColor: '#ffffff' }}
               title={title}
             />
+          ) : isImageBroken ? (
+            <div className="flex flex-col items-center gap-4">
+              <FileText size={48} className="text-neutral-600 animate-pulse" />
+              <p className="text-sm text-neutral-400 font-sans font-semibold">
+                Preview could not be displayed.
+              </p>
+              <button 
+                onClick={() => window.open(resolvedUrl, '_blank')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download size={12} />
+                <span>View File</span>
+              </button>
+            </div>
           ) : (
             <img 
               src={resolvedUrl} 
+              onError={() => setIsImageBroken(true)}
               className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-lg" 
               alt={title} 
             />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, CheckCircle2, ArrowUpRight, HelpCircle, X, Download } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, ArrowUpRight, HelpCircle, X, Download, FileText } from 'lucide-react';
 import { usePortfolio } from '../context/PortfolioContext';
 import { StaggerContainer, StaggerItem } from './ScrollReveal';
 import { useResolvedUrl } from '../hooks/useResolvedUrl';
@@ -188,6 +188,11 @@ function DefaultCertificateMockup({ cert }: { cert: any }) {
 export default function CertificatesList() {
   const { certificates } = usePortfolio();
   const [activeCert, setActiveCert] = useState<any | null>(null);
+  const [isImageBroken, setIsImageBroken] = useState(false);
+
+  useEffect(() => {
+    setIsImageBroken(false);
+  }, [activeCert]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -326,9 +331,24 @@ export default function CertificatesList() {
                     style={{ backgroundColor: '#ffffff' }}
                     title={activeCert.title}
                   />
+                ) : isImageBroken ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <FileText size={48} className="text-neutral-600 animate-pulse" />
+                    <p className="text-sm text-neutral-400 font-sans font-semibold">
+                      Preview could not be displayed.
+                    </p>
+                    <button 
+                      onClick={() => window.open(activeResolvedUrl, '_blank')}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-md transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download size={12} />
+                      <span>View File</span>
+                    </button>
+                  </div>
                 ) : (
                   <img 
                     src={activeResolvedUrl} 
+                    onError={() => setIsImageBroken(true)}
                     className="max-w-full max-h-[62vh] object-contain rounded-lg shadow-lg" 
                     alt={activeCert.title} 
                   />

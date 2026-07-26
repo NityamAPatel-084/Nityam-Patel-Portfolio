@@ -96,6 +96,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
 
   // Success / error feedbacks
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [uploadError, setUploadError] = useState<{ title: string; suggestion: string } | null>(null);
 
   const triggerFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setFeedback({ type, text });
@@ -217,12 +218,29 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size first for non-image files
+    // Extension validation
+    const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg', 'webp'];
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    
+    if (!allowedExtensions.includes(fileExt)) {
+      setUploadError({
+        title: `File type ".${fileExt}" is not accepted by the system.`,
+        suggestion: `Please convert your file to one of the supported formats: ${allowedExtensions.map(ext => '.' + ext).join(', ')} before uploading.`
+      });
+      e.target.value = ''; // Clear input
+      return;
+    }
+
+    // Check size first for non-image files (PDFs)
     if (!file.type.startsWith('image/')) {
       // Allow up to 12 MB for resumes and general documents
       const MAX_DOC_SIZE = 12 * 1024 * 1024;
       if (file.size > MAX_DOC_SIZE) {
-        triggerFeedback('Document size is too large. Resumes must be less than 12 MB.', 'error');
+        setUploadError({
+          title: `The document "${file.name}" exceeds the maximum allowed size of 12 MB (Actual size: ${Math.round(file.size / 1024 / 1024)} MB).`,
+          suggestion: "Please compress the PDF file using an online PDF compressor or reduce its pages/images before uploading to avoid database write errors."
+        });
+        e.target.value = ''; // Clear input
         return;
       }
       
@@ -232,31 +250,35 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
         triggerFeedback(`Uploaded document ready: ${file.name} (${Math.round(file.size / 1024)} KB)`);
       };
       reader.onerror = () => {
-        triggerFeedback('Failed to read document file.', 'error');
+        setUploadError({
+          title: `Failed to read document file: "${file.name}".`,
+          suggestion: "The file might be corrupted or in use by another process. Please check the file and try again."
+        });
+        e.target.value = ''; // Clear input
       };
       reader.readAsDataURL(file);
       return;
     }
 
     // It's an image. Let's see if the file is already under 600 KB.
-    // If it is already under 600 KB, we do NOT downscale or compress it.
-    // We can just load it directly to maintain 100% of the original quality!
     if (file.size <= 600 * 1024) {
       const reader = new FileReader();
       reader.onload = (event) => {
         fieldSetter(event.target?.result as string);
-        triggerFeedback(`Image uploaded at original high resolution: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+        triggerFeedback(`Image uploaded: ${file.name} (${Math.round(file.size / 1024)} KB)`);
       };
       reader.onerror = () => {
-        triggerFeedback('Failed to read image file.', 'error');
+        setUploadError({
+          title: `Failed to read image file: "${file.name}".`,
+          suggestion: "The file might be corrupted or in use by another process. Please check the file and try again."
+        });
+        e.target.value = ''; // Clear input
       };
       reader.readAsDataURL(file);
       return;
     }
 
     // If the image is over 600 KB, let's downscale and compress it intelligently so that it is "just under 1 MB".
-    // 1 MB of binary is ~1,048,576 bytes. Encoded in Base64, that is ~1,398,101 characters.
-    // Let's target a safe base64 string length of 850,000 characters (~630 KB binary) so it's "just under 1 MB" and doesn't trigger document write errors in Firebase.
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -305,23 +327,49 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
           resultBase64 = compressImage(800, 0.70);
         }
 
+        // Final safety check: if still over 1,000,000 characters, reject it to prevent database limit issues
+        if (resultBase64.length > 1000000) {
+          setUploadError({
+            title: `The image "${file.name}" is too large and could not be compressed under the system's database limit.`,
+            suggestion: "Please resize the image or convert it to a more compressed format (like WebP or JPEG) with lower resolution before uploading."
+          });
+          e.target.value = ''; // Clear input
+          return;
+        }
+
         if (resultBase64) {
           fieldSetter(resultBase64);
           triggerFeedback(`Image intelligently optimized: ${Math.round(resultBase64.length * 3 / 4 / 1024)} KB (under 1 MB limit)`);
         } else {
-          // Fallback to original
-          fieldSetter(event.target?.result as string);
+          // Fallback to original if under 1 MB
+          const orig = event.target?.result as string;
+          if (orig.length > 1000000) {
+            setUploadError({
+              title: `The image "${file.name}" is too large and could not be compressed under the system's database limit.`,
+              suggestion: "Please resize the image or convert it to a more compressed format (like WebP or JPEG) with lower resolution before uploading."
+            });
+            e.target.value = ''; // Clear input
+            return;
+          }
+          fieldSetter(orig);
           triggerFeedback(`Uploaded image: ${file.name}`);
         }
       };
       img.onerror = () => {
-        fieldSetter(event.target?.result as string);
-        triggerFeedback(`Uploaded image: ${file.name}`);
+        setUploadError({
+          title: `Failed to load image structure from "${file.name}".`,
+          suggestion: "The file might not be a valid image or is corrupted. Please verify the file and try again."
+        });
+        e.target.value = ''; // Clear input
       };
       img.src = event.target?.result as string;
     };
     reader.onerror = () => {
-      triggerFeedback('Failed to read image file.', 'error');
+      setUploadError({
+        title: `Failed to read image file: "${file.name}".`,
+        suggestion: "The file might be corrupted or in use by another process. Please check the file and try again."
+      });
+      e.target.value = ''; // Clear input
     };
     reader.readAsDataURL(file);
   };
@@ -3153,6 +3201,42 @@ service cloud.firestore {
 
         </main>
       </motion.div>
+
+      {uploadError && (
+        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#110809] border border-rose-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4 font-sans text-left"
+          >
+            <div className="flex items-center gap-3 text-rose-400 border-b border-rose-950 pb-3">
+              <ShieldAlert size={24} className="animate-pulse" />
+              <h4 className="text-sm font-bold uppercase tracking-wider">File Upload Rejected</h4>
+            </div>
+            
+            <div className="space-y-3 py-1">
+              <p className="text-xs text-neutral-200 font-semibold leading-relaxed">
+                {uploadError.title}
+              </p>
+              <div className="bg-rose-950/20 border border-rose-900/30 rounded-lg p-3 space-y-1">
+                <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">How to resolve:</span>
+                <p className="text-[11px] text-neutral-400 leading-relaxed">
+                  {uploadError.suggestion}
+                </p>
+              </div>
+            </div>
+            
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setUploadError(null)}
+                className="px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-500/50 text-rose-400 font-bold rounded-lg text-xs transition-all duration-300 shadow-md hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                Acknowledge & Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
